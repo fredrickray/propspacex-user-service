@@ -1,0 +1,11 @@
+version: '3.8'
+
+services: 
+  postgres:
+   image: postgres:15
+   container_name: propspacex-postgres
+   environment:
+      POSTGRES_DB: propspacex_db
+      POSTGRES_USER: propspacex_user
+      POSTGRES_PASSWORD: your_password_here
+    # ports: "5432:5432"

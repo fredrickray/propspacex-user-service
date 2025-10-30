@@ -1,7 +1,7 @@
 import express, { Application } from 'express';
 import bodyParser from 'body-parser';
 import { AppDataSource } from '@config/data.source';
-
+import indexRouter from './v1/route';
 export default class Server {
   public app: Application;
 
@@ -36,7 +36,7 @@ export default class Server {
         message: 'Server initialized and ready for action!',
       });
     });
-    // this.app.use("/v1/api", indexRouter);
+    this.app.use('/v1/api', indexRouter);
   }
 
   async connectDatabase() {

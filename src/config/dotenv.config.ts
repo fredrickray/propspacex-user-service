@@ -16,7 +16,7 @@ const DotenvConfig = {
     entities: process.env.DB_ENTITIES ? process.env.DB_ENTITIES.split(',') : [],
     migrations: process.env.DB_MIGRATIONS
       ? process.env.DB_MIGRATIONS.split(',')
-      : [],
+      : ['src/migrations/*.ts'],
     subscribers: process.env.DB_SUBSCRIBERS
       ? process.env.DB_SUBSCRIBERS.split(',')
       : [],
