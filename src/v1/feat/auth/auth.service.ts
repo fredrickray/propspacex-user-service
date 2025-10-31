@@ -9,7 +9,7 @@ import {
   TooManyRequests,
 } from '@middlewares/error.middleware';
 // import { userRepo } from '@user/user.entity';
-import { ISignup, TokenPayload, TokenType } from './auth.type';
+import { ISignin, ISignup, TokenPayload, TokenType } from './auth.type';
 import { IUser } from '@user/user.type';
 // import { loginAttemptRepo, tokenRepo } from './auth.entity';
 import { generateRandomHexString } from '@utils/crypto.utils';
@@ -50,6 +50,34 @@ export default class AuthService {
     await userRepo.save(newUser);
 
     return newUser;
+  }
+
+  static async signin(payload: ISignin, ipAddress: string) {
+    const user = await userRepo.findOneBy({ email: payload.email });
+    if (!user) {
+      this.logFailedAttempt(payload.email, ipAddress);
+      throw new ResourceNotFound('Invalid credentials');
+    }
+
+    this.checkLoginCooldown(user, ipAddress);
+
+    const isPasswordValid = await bcrypt.compare(
+      payload.password,
+      user.password
+    );
+    if (!isPasswordValid) {
+      await this.handleInvalidPassword(user, payload.email, ipAddress);
+    }
+
+    if (!user.isVerified) await this.handleUnverifiedAccount(user);
+
+    if (!user.isVerified) await this.handleUnverifiedAccount(user);
+
+    await this.resetLoginAttempts(user);
+
+    // const tokens = await this.generateTokens(user);
+    const { accessToken, refreshToken } = await this.generateTokens(user);
+    return { accessToken, refreshToken, user };
   }
 
   private static async logFailedAttempt(email: string, ipAddress: string) {
