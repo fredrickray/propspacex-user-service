@@ -13,9 +13,17 @@ import { ISignin, ISignup, TokenPayload, TokenType } from './auth.type';
 import { IUser } from '@user/user.type';
 // import { loginAttemptRepo, tokenRepo } from './auth.entity';
 import { generateRandomHexString } from '@utils/crypto.utils';
+import { generateOTP, verifyOTP } from '@utils/otp.utils';
 import { AppDataSource } from '@config/data.source';
 import { User } from '@user/user.entity';
 import { LoginAttempt, Token } from './auth.entity';
+import {
+  signinValidationSchema,
+  signupValidationSchema,
+  forgotPasswordValidationSchema,
+  verifyOTPValidationSchema,
+  resendOTPValidationSchema,
+} from '@validations/auth.validations';
 
 const userRepo = AppDataSource.getRepository(User);
 const loginAttemptRepo = AppDataSource.getRepository(LoginAttempt);
@@ -80,6 +88,83 @@ export default class AuthService {
     return { accessToken, refreshToken, user };
   }
 
+  static async verifyOTP(email: string, otp: string) {
+    const user = await userRepo.findOneBy({ email });
+    if (!user) throw new ResourceNotFound('User not found');
+
+    if (user.isVerified) throw new BadRequest('Account is already verified');
+
+    const existingToken = await tokenRepo.findOneBy({
+      userId: user.id,
+      tokenType: TokenType.EMAIL_VERIFICATION,
+    });
+
+    if (!existingToken) throw new BadRequest('Verification token not found');
+
+    const isTokenValid = verifyOTP(otp, existingToken.token);
+    if (!isTokenValid) throw new Unauthorized('Invalid or expired otp');
+
+    await userRepo.save({ ...user, isVerified: true });
+
+    await tokenRepo.delete({ id: existingToken.id });
+
+    return true;
+  }
+
+  static async resendOTP(email: string) {
+    const { error } = resendOTPValidationSchema.validate({ email });
+    if (error) {
+      const errorMessages: string[] = error.details.map(
+        (detail) => detail.message
+      );
+      throw new InvalidInput(errorMessages.join(', '));
+    }
+
+    const user = await userRepo.findOneBy({ email });
+    if (!user) throw new ResourceNotFound('Email not found');
+
+    await tokenRepo.delete({
+      userId: user.id,
+      tokenType: TokenType.EMAIL_VERIFICATION,
+    });
+
+    const otp = generateOTP();
+    const hashedOTP = await bcrypt.hash(otp, DotenvConfig.BcryptSalt);
+
+    tokenRepo.create({
+      userId: user.id,
+      token: hashedOTP,
+      tokenType: TokenType.EMAIL_VERIFICATION,
+    });
+
+    return user;
+  }
+
+  static async forgotPassword(email: string) {
+    const { error } = forgotPasswordValidationSchema.validate({ email });
+    if (error) {
+      const errorMessages = error.details.map((detail) => detail.message);
+      throw new InvalidInput(errorMessages.join(', '));
+    }
+
+    const existingUser = await userRepo.findOneBy({ email });
+    if (!existingUser) throw new ResourceNotFound('User not found');
+
+    await tokenRepo.delete({
+      userId: existingUser.id,
+      tokenType: TokenType.RESET_PASSWORD,
+    });
+
+    const otp = generateOTP();
+    const hashedOTP = await bcrypt.hash(otp, DotenvConfig.BcryptSalt);
+
+    const token = tokenRepo.create({
+      userId: existingUser.id,
+      token: hashedOTP,
+      tokenType: TokenType.RESET_PASSWORD,
+    });
+  }
+
   private static async logFailedAttempt(email: string, ipAddress: string) {
     loginAttemptRepo.create({ email, success: false, ipAddress });
   }
@@ -128,7 +213,7 @@ export default class AuthService {
       tokenType: TokenType.EMAIL_VERIFICATION,
     });
 
-    // const verifyURL = `${DotenvConfig.frontendBaseURL}/verifyemail?id=${token._id}&token=${verifyToken}`;
+    const verifyURL = `${DotenvConfig.frontendBaseURL}/verifyemail?id=${token.id}&token=${verifyToken}`;
     // await EmailService.sendMailTemplate('verifyEmailTemplate', user.email, { username: user.firstName, link: verifyURL });
 
     throw new Unauthorized(
