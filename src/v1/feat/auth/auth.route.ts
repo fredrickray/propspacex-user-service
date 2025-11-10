@@ -1,10 +1,18 @@
 import { Router } from 'express';
 import AuthController from './auth.controller';
 
-const authRoputer = Router();
+const authRouter = Router();
 
-authRoputer.post('/signup', AuthController.signup.bind(AuthController));
+authRouter.post('/signup', AuthController.signup.bind(AuthController));
 
-authRoputer.post('/signin', AuthController.signin.bind(AuthController));
+authRouter
+  .route('/verifyEmail')
+  .post(AuthController.verifyOTP.bind(AuthController));
 
-export default authRoputer;
+authRouter
+  .route('/resendOTP')
+  .post(AuthController.resendOTP.bind(AuthController));
+
+authRouter.post('/signin', AuthController.signin.bind(AuthController));
+
+export default authRouter;

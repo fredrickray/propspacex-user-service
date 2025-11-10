@@ -15,6 +15,7 @@ export default class Server {
     // this.handleErrors();
     console.log('Connecting to database...');
     this.connectDatabase();
+    this.setupGracefulShutdown();
   }
 
   initializeMiddlewares() {
@@ -47,6 +48,39 @@ export default class Server {
       console.error('Error connecting to the database:', error);
       process.exit(1);
     }
+  }
+
+  setupGracefulShutdown() {
+    const gracefulShutdown = (signal: string) => {
+      console.log(`\nReceived ${signal}, cleaning up WebSocket connections...`);
+
+      // this.app.close(() => {
+      //   console.log('Server closed gracefully');
+      //   process.exit(0);
+      // });
+
+      // Force close after 10 seconds
+      setTimeout(() => {
+        console.error(
+          'Could not close connections in time, forcefully shutting down'
+        );
+        process.exit(1);
+      }, 10000);
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      console.error('Uncaught Exception:', error);
+      gracefulShutdown('UNCAUGHT_EXCEPTION');
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+      gracefulShutdown('UNHANDLED_REJECTION');
+    });
   }
 
   start(port: number) {
