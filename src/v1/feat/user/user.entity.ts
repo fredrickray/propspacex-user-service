@@ -1,9 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
 import { AppRoles } from './user.type';
 // import { AppDataSource } from '@config/data.source';
 
 @Entity('User')
 export class User {
+  @Index()
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 

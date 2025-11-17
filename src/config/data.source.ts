@@ -1,6 +1,8 @@
 import DotenvConfig from './dotenv.config';
 import { DataSource } from 'typeorm';
 import { User } from '@user/user.entity';
+import { Device } from '@security/device.entity';
+import { ActivityLog } from '@security/activity.entity';
 
 export const AppDataSource = new DataSource({
   type: DotenvConfig.Database.type as any,
@@ -11,7 +13,7 @@ export const AppDataSource = new DataSource({
   database: DotenvConfig.Database.database,
   synchronize: DotenvConfig.Database.synchronize,
   logging: DotenvConfig.Database.logging,
-  entities: [User],
+  entities: [User, Device, ActivityLog],
   migrations: DotenvConfig.Database.migrations,
   subscribers: DotenvConfig.Database.subscribers,
 });
