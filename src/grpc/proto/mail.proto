@@ -48,8 +48,8 @@ message PasswordResetEmailRequest {
     string recipient_email = 1;
     string first_name = 2;
     string reset_link = 3;
-    string reset_code = 4;              // Optional OTP
-    int32 expiry_minutes = 5;
+    // string reset_code = 4;              // Optional OTP
+    // int32 expiry_minutes = 5;
 }
 
 message PasswordChangedEmailRequest {

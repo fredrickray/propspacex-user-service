@@ -57,8 +57,8 @@ export interface PasswordResetEmailParams {
   recipientEmail: string;
   firstName: string;
   resetLink: string;
-  resetCode?: string;
-  expiryMinutes: number;
+  //   resetCode?: string;
+  //   expiryMinutes: number;
 }
 
 export interface PasswordChangedEmailParams {
