@@ -48,9 +48,8 @@ export interface IToken {
 export interface TokenPayload {
   sub: string;
   appRole: string;
-  iat: number;
-  exp: number;
   type: TokenType;
+  tokenVersion: number;
   rememberMe: boolean;
 }
 

@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import jwt, { SignOptions, JwtPayload } from 'jsonwebtoken';
+import jwt, { SignOptions, JwtPayload, Secret } from 'jsonwebtoken';
 import DotenvConfig from '@config/dotenv.config';
 import {
   BadRequest,
@@ -462,39 +462,46 @@ export default class AuthService {
     await userRepo.save(user);
   }
 
-  private static async generateTokens(user: any) {
+  private static async generateTokens(
+    user: IUser,
+    rememberMe: boolean = false
+  ) {
     const accessTokenPayload: TokenPayload = {
       sub: user.id,
       appRole: user.appRole,
-      iat: Date.now(),
-      exp: Date.now() + DotenvConfig.TokenExpiry.accessToken,
       type: TokenType.ACCESS,
-      rememberMe: false,
+      tokenVersion: user.tokenVersion,
+      rememberMe,
     };
 
     const refreshTokenPayload: TokenPayload = {
       sub: user.id,
       appRole: user.appRole,
-      iat: Date.now(),
-      exp: Date.now() + DotenvConfig.TokenExpiry.refreshToken,
       type: TokenType.REFRESH,
+      tokenVersion: user.tokenVersion,
       rememberMe: false,
     };
 
     const accessToken = this.generateJWT(
       accessTokenPayload,
-      DotenvConfig.JWTHeader.accessTokenSecret
+      DotenvConfig.JWTHeader.accessTokenSecret,
+      DotenvConfig.TokenExpiry.accessToken
     );
     const refreshToken = this.generateJWT(
       refreshTokenPayload,
-      DotenvConfig.JWTHeader.refreshTokenSecret
+      DotenvConfig.JWTHeader.refreshTokenSecret,
+      DotenvConfig.TokenExpiry.refreshToken
     );
 
     return { accessToken, refreshToken };
   }
 
-  private static generateJWT(payload: TokenPayload, secret: string): string {
-    return jwt.sign(payload, secret, this.JWT_OPTIONS);
+  private static generateJWT(
+    payload: TokenPayload,
+    secret: string,
+    expiresIn: SignOptions['expiresIn']
+  ): string {
+    return jwt.sign(payload, secret, { ...this.JWT_OPTIONS, expiresIn });
   }
 
   static async verifyJWT(token: string, type: TokenType): Promise<JwtPayload> {

@@ -14,7 +14,7 @@ const DotenvConfig = {
     username: process.env.DB_USERNAME as string,
     password: process.env.DB_PASSWORD as string,
     database: process.env.DB_NAME as string,
-    synchronize: process.env.DB_SYNCHRONIZE === 'false',
+    synchronize: process.env.DB_SYNCHRONIZE === 'true',
     logging: process.env.DB_LOGGING === 'true',
     entities: process.env.DB_ENTITIES ? process.env.DB_ENTITIES.split(',') : [],
     migrations: process.env.DB_MIGRATIONS

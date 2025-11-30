@@ -26,6 +26,12 @@ export class User {
   @Column({ type: 'boolean', default: false })
   isVerified!: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  reAuth!: boolean;
+
+  @Column({ type: 'int', default: 0 })
+  tokenVersion!: number;
+
   @Column({ type: 'boolean', default: true })
   isAccountActive!: boolean;
 
