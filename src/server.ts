@@ -70,6 +70,10 @@ export default class Server {
       this.grpcServer.addService(Protos.user.UserService.service, {
         getUser: userService.getUser,
         getUserEmail: userService.getUserEmail,
+        signin: userService.signin,
+        signup: userService.signup,
+        verifyOTP: userService.verifyOTP,
+        resendOTP: userService.resendOTP,
         // listUsers: userService.listUsers,
       });
 
