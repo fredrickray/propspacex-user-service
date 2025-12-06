@@ -1,17 +1,20 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
 import { TokenType } from './auth.type';
 
 @Entity('Token')
+@Index(['userId', 'tokenType']) // Composite index for common queries
 export class Token {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Index()
   @Column({ type: 'varchar' })
   userId!: string;
 
   @Column({ type: 'varchar' })
   token!: string;
 
+  @Index()
   @Column({ type: 'enum', enum: TokenType })
   tokenType!: TokenType;
 
@@ -27,6 +30,7 @@ export class LoginAttempt {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Index()
   @Column({ type: 'varchar' })
   email!: string;
 
