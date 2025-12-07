@@ -6,6 +6,7 @@ dotenv.config();
 const DotenvConfig = {
   serverPort: process.env.PORT as unknown as number,
   grpcPort: process.env.GRPC_PORT as unknown as number,
+  mailServiceGrpcURL: process.env.MAIL_SERVICE_GRPC_URL as string,
   Database: {
     type: process.env.DB_TYPE as string,
     host: process.env.DB_HOST as string,
