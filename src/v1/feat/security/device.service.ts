@@ -2,6 +2,10 @@ import { AppDataSource } from '@config/data.source';
 import { Device } from './device.entity';
 import { generateRandomHexString } from '@utils/crypto.utils';
 import geoip from 'geoip-lite';
+import ActivityService from './activity.service';
+import { Event } from './activity.type';
+import SecurityAlertService from './security-alert.service';
+import { ResourceNotFound } from '@middlewares/error.middleware';
 
 const deviceRepo = AppDataSource.getRepository(Device);
 
@@ -38,7 +42,38 @@ export default class DeviceService {
       firstLogin: new Date(),
       lastActive: new Date(),
     });
-    return await deviceRepo.save(device);
+
+    const savedDevice = await deviceRepo.save(device);
+
+    await this.checkForSuspiciousDevice(userId, savedDevice);
+
+    return savedDevice;
+  }
+
+  static async trustDevice(userId: string, deviceId: string) {
+    const device = await deviceRepo.findOne({
+      where: { userId, deviceId, isRevoked: false },
+    });
+
+    if (!device) {
+      throw new Error('Device not found or already revoked');
+    }
+
+    device.isTrusted = true;
+    await deviceRepo.save(device);
+
+    await ActivityService.log(Event.DEVICE_TRUSTED, {
+      userId,
+      deviceId,
+      ip: device.ipAddress || undefined,
+      userAgent: device.userAgent || undefined,
+      location: device.location || undefined,
+      metadata: {
+        deviceType: device.deviceType,
+      },
+    });
+
+    return device;
   }
   static detectDeviceType(userAgent?: string): string {
     if (!userAgent) return 'Unknown';
@@ -69,11 +104,86 @@ export default class DeviceService {
     }
   }
   static async revokeDevice(userId: string, deviceId: string) {
-    const device = await deviceRepo.findOneBy({ userId, deviceId });
-    if (!device) return null;
+    const device = await deviceRepo.findOne({ where: { userId, deviceId } });
+    if (!device) throw new ResourceNotFound('Device not found');
+
     device.isRevoked = true;
-    return await deviceRepo.save(device);
+    device.isTrusted = false;
+    await deviceRepo.save(device);
+
+    await ActivityService.log(Event.DEVICE_REVOKED, {
+      userId,
+      deviceId,
+      ip: device.ipAddress || undefined,
+      userAgent: device.userAgent || undefined,
+      location: device.location || undefined,
+      metadata: {
+        deviceType: device.deviceType,
+        revokedAt: new Date(),
+      },
+    });
+
+    return device;
   }
+
+  static async isDeviceTrusted(
+    userId: string,
+    deviceId: string
+  ): Promise<boolean> {
+    const device = await deviceRepo.findOne({
+      where: { userId, deviceId, isRevoked: false },
+    });
+
+    return device?.isTrusted ?? false;
+  }
+
+  static async getTrustedDevices(userId: string) {
+    return deviceRepo.find({
+      where: { userId, isTrusted: true, isRevoked: false },
+      order: { lastActive: 'DESC' },
+    });
+  }
+
+  private static async checkForSuspiciousDevice(
+    userId: string,
+    newDevice: Device
+  ) {
+    const userDevices = await deviceRepo.find({
+      where: { userId, isRevoked: false },
+      order: { lastActive: 'DESC' },
+    });
+
+    // Check if this is from a completely new location
+    const knownLocations = userDevices.map((d) => d.location).filter(Boolean);
+
+    const isNewLocation =
+      newDevice.location && !knownLocations.includes(newDevice.location);
+
+    // Check if this is a new device type
+    const knownDeviceTypes = [...new Set(userDevices.map((d) => d.deviceType))];
+    const isNewDeviceType = !knownDeviceTypes.includes(newDevice.deviceType);
+
+    // If new location or device type, flag as suspicious
+    if (isNewLocation || (isNewDeviceType && userDevices.length > 0)) {
+      await ActivityService.log(Event.SUSPICIOUS_ACTIVITY, {
+        userId,
+        deviceId: newDevice.deviceId,
+        ip: newDevice.ipAddress || undefined,
+        userAgent: newDevice.userAgent || undefined,
+        location: newDevice.location || undefined,
+        metadata: {
+          reason: isNewLocation ? 'new_location' : 'new_device_type',
+          deviceType: newDevice.deviceType,
+          previousLocations: knownLocations,
+          previousDeviceTypes: knownDeviceTypes,
+        },
+      });
+
+      // Send security alert
+      await SecurityAlertService.sendNewDeviceAlert(userId, newDevice);
+    }
+  }
+
   static async listDevicesForUser(userId: string) {
     return deviceRepo.find({
       where: { userId },

@@ -24,6 +24,9 @@ import {
   verifyOTPValidationSchema,
   resendOTPValidationSchema,
 } from '@validations/auth.validations';
+import DeviceService from '@security/device.service';
+import ActivityService from '@security/activity.service';
+import { Event } from '@security/activity.type';
 
 const userRepo = AppDataSource.getRepository(User);
 const loginAttemptRepo = AppDataSource.getRepository(LoginAttempt);
@@ -41,7 +44,12 @@ export default class AuthService {
     return bcrypt.hash(password, DotenvConfig.BcryptSalt);
   }
 
-  static async signup(payload: ISignup) {
+  static async signup(
+    payload: ISignup,
+    ipAddress?: string,
+    userAgent?: string,
+    location?: string
+  ) {
     const exisitingUser = await userRepo.findOneBy({ email: payload.email });
     if (exisitingUser) throw new BadRequest('Email already exists');
 
@@ -57,13 +65,41 @@ export default class AuthService {
 
     await userRepo.save(newUser);
 
+    await ActivityService.log(Event.USER_REGISTERED, {
+      userId: newUser.id,
+      ip: ipAddress,
+      userAgent,
+      location,
+      metadata: {
+        email: newUser.email,
+        appRole: newUser.appRole,
+      },
+    });
+
+    await DeviceService.registerOrUpdate(newUser.id, ipAddress, userAgent, {
+      isTrusted: false,
+    });
+
     return newUser;
   }
 
-  static async signin(payload: ISignin, ipAddress: string) {
+  static async signin(
+    payload: ISignin,
+    ipAddress: string,
+    userAgent?: string,
+    location?: string
+  ) {
     const user = await userRepo.findOneBy({ email: payload.email });
     if (!user) {
       this.logFailedAttempt(payload.email, ipAddress);
+      await ActivityService.log(Event.LOGIN_FAILED, {
+        userId: null,
+        ip: ipAddress,
+        userAgent,
+        location,
+        metadata: { email: payload.email, reason: 'user_not_found' },
+      });
+      console.log('activity log: user not found');
       throw new ResourceNotFound('Invalid credentials');
     }
 
@@ -74,21 +110,49 @@ export default class AuthService {
       user.password
     );
     if (!isPasswordValid) {
-      await this.handleInvalidPassword(user, payload.email, ipAddress);
+      await this.handleInvalidPassword(
+        user,
+        payload.email,
+        ipAddress,
+        userAgent,
+        location
+      );
     }
-
-    if (!user.isVerified) await this.handleUnverifiedAccount(user);
 
     if (!user.isVerified) await this.handleUnverifiedAccount(user);
 
     await this.resetLoginAttempts(user);
 
-    // const tokens = await this.generateTokens(user);
+    const device = await DeviceService.registerOrUpdate(
+      user.id,
+      ipAddress,
+      userAgent,
+      { isTrusted: false }
+    );
+
+    // Log successful login
+    await ActivityService.log(Event.LOGIN_SUCCESS, {
+      userId: user.id,
+      ip: ipAddress,
+      userAgent,
+      location,
+      deviceId: device.deviceId,
+      metadata: {
+        deviceType: device.deviceType,
+      },
+    });
+
     const { accessToken, refreshToken } = await this.generateTokens(user);
-    return { accessToken, refreshToken, user };
+    return { accessToken, refreshToken, user, device };
   }
 
-  static async verifyOTP(email: string, otp: string) {
+  static async verifyOTP(
+    email: string,
+    otp: string,
+    ipAddress?: string,
+    userAgent?: string,
+    location?: string
+  ) {
     const user = await userRepo.findOneBy({ email });
     if (!user) throw new ResourceNotFound('User not found');
 
@@ -102,16 +166,39 @@ export default class AuthService {
     if (!existingToken) throw new BadRequest('Verification token not found');
 
     const isTokenValid = verifyOTP(otp, existingToken.token);
-    if (!isTokenValid) throw new Unauthorized('Invalid or expired otp');
+    if (!isTokenValid) {
+      await ActivityService.log(Event.EMAIL_VERIFICATION_FAILED, {
+        userId: user.id,
+        ip: ipAddress,
+        userAgent,
+        location,
+        metadata: { email: user.email },
+      });
+
+      throw new Unauthorized('Invalid or expired otp');
+    }
 
     await userRepo.save({ ...user, isVerified: true });
 
     await tokenRepo.delete({ id: existingToken.id });
 
+    await ActivityService.log(Event.EMAIL_VERIFIED, {
+      userId: user.id,
+      ip: ipAddress,
+      userAgent,
+      location,
+      metadata: { email: user.email },
+    });
+
     return true;
   }
 
-  static async resendOTP(email: string) {
+  static async resendOTP(
+    email: string,
+    ipAddress?: string,
+    userAgent?: string,
+    location?: string
+  ) {
     const { error } = resendOTPValidationSchema.validate({ email });
     if (error) {
       const errorMessages: string[] = error.details.map(
@@ -131,16 +218,31 @@ export default class AuthService {
     const otp = generateOTP();
     const hashedOTP = await bcrypt.hash(otp, DotenvConfig.BcryptSalt);
 
-    tokenRepo.create({
+    await tokenRepo.save(
+      tokenRepo.create({
+        userId: user.id,
+        token: hashedOTP,
+        tokenType: TokenType.EMAIL_VERIFICATION,
+      })
+    );
+
+    await ActivityService.log(Event.OTP_RESENT, {
       userId: user.id,
-      token: hashedOTP,
-      tokenType: TokenType.EMAIL_VERIFICATION,
+      ip: ipAddress,
+      userAgent,
+      location,
+      metadata: { email: user.email },
     });
 
     return user;
   }
 
-  static async forgotPassword(email: string) {
+  static async forgotPassword(
+    email: string,
+    ipAddress?: string,
+    userAgent?: string,
+    location?: string
+  ) {
     const { error } = forgotPasswordValidationSchema.validate({ email });
     if (error) {
       const errorMessages = error.details.map((detail) => detail.message);
@@ -158,11 +260,69 @@ export default class AuthService {
     const otp = generateOTP();
     const hashedOTP = await bcrypt.hash(otp, DotenvConfig.BcryptSalt);
 
-    const token = tokenRepo.create({
+    const token = await tokenRepo.save(
+      tokenRepo.create({
+        userId: existingUser.id,
+        token: hashedOTP,
+        tokenType: TokenType.RESET_PASSWORD,
+      })
+    );
+
+    await ActivityService.log(Event.PASSWORD_RESET_REQUESTED, {
       userId: existingUser.id,
-      token: hashedOTP,
+      ip: ipAddress,
+      userAgent,
+      location,
+      metadata: { email: existingUser.email },
+    });
+
+    return token;
+  }
+
+  static async resetPassword(
+    userId: string,
+    newPassword: string,
+    ipAddress?: string,
+    userAgent?: string,
+    location?: string
+  ) {
+    const user = await userRepo.findOneBy({ id: userId });
+    if (!user) throw new ResourceNotFound('User not found');
+
+    const hashedPassword = await this.hashPassword(newPassword);
+    user.password = hashedPassword;
+    await userRepo.save(user);
+
+    await tokenRepo.delete({
+      userId: user.id,
       tokenType: TokenType.RESET_PASSWORD,
     });
+
+    await ActivityService.log(Event.PASSWORD_RESET_SUCCESS, {
+      userId: user.id,
+      ip: ipAddress,
+      userAgent,
+      location,
+      metadata: { email: user.email },
+    });
+
+    return true;
+  }
+
+  static async logout(
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+    location?: string
+  ) {
+    await ActivityService.log(Event.LOGOUT, {
+      userId,
+      ip: ipAddress,
+      userAgent,
+      location,
+    });
+
+    return true;
   }
 
   private static async logFailedAttempt(email: string, ipAddress: string) {
@@ -182,7 +342,9 @@ export default class AuthService {
   private static async handleInvalidPassword(
     user: IUser,
     email: string,
-    ipAddress: string
+    ipAddress: string,
+    userAgent?: string,
+    location?: string
   ) {
     user.loginAttempts += 1;
 
@@ -191,6 +353,18 @@ export default class AuthService {
       user.loginAttempts = 0;
 
       await userRepo.save(user);
+
+      await ActivityService.log(Event.ACCOUNT_LOCKED, {
+        userId: user.id,
+        ip: ipAddress,
+        userAgent,
+        location,
+        metadata: {
+          reason: 'too_many_failed_attempts',
+          cooldownUntil: user.loginCooldown,
+        },
+      });
+
       throw new TooManyRequests(
         `Account locked due to multiple failed login attempts. Try again after ${user.loginCooldown}`
       );
@@ -198,6 +372,18 @@ export default class AuthService {
 
     await userRepo.save(user);
     this.logFailedAttempt(email, ipAddress);
+
+    await ActivityService.log(Event.LOGIN_FAILED, {
+      userId: user.id,
+      ip: ipAddress,
+      userAgent,
+      location,
+      metadata: {
+        reason: 'invalid_password',
+        attemptsRemaining: user.allowedLoginAttempts - user.loginAttempts,
+      },
+    });
+
     throw new Unauthorized(
       `Invalid credentials. ${user.allowedLoginAttempts - user.loginAttempts} attempt(s) remaining`
     );
@@ -207,11 +393,13 @@ export default class AuthService {
     const verifyToken = generateRandomHexString(32);
     const hashedToken = await bcrypt.hash(verifyToken, DotenvConfig.BcryptSalt);
 
-    const token = tokenRepo.create({
-      userId: user.id,
-      token: hashedToken,
-      tokenType: TokenType.EMAIL_VERIFICATION,
-    });
+    const token = await tokenRepo.save(
+      tokenRepo.create({
+        userId: user.id,
+        token: hashedToken,
+        tokenType: TokenType.EMAIL_VERIFICATION,
+      })
+    );
 
     const verifyURL = `${DotenvConfig.frontendBaseURL}/verifyemail?id=${token.id}&token=${verifyToken}`;
     // await EmailService.sendMailTemplate('verifyEmailTemplate', user.email, { username: user.firstName, link: verifyURL });

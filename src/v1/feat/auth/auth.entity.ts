@@ -1,6 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 import { TokenType } from './auth.type';
-import { AppDataSource } from '@config/data.source';
 
 @Entity('Token')
 export class Token {
@@ -40,6 +39,3 @@ export class LoginAttempt {
   @Column({ type: 'varchar', nullable: true })
   ipAddress!: string;
 }
-
-export const tokenRepo = AppDataSource.getRepository(Token);
-export const loginAttemptRepo = AppDataSource.getRepository(LoginAttempt);

@@ -4,8 +4,10 @@ import * as grpc from '@grpc/grpc-js';
 import { AppDataSource } from '@config/data.source';
 import indexRouter from './v1/route';
 import DotenvConfig from '@config/dotenv.config';
+import { errorHandler, routeNotFound } from '@middlewares/error.middleware';
 import UserServiceImpl from '@grpc/server/user.server';
 import { Protos } from './grpc';
+
 export default class Server {
   public app: Application;
   private grpcServer: grpc.Server;
@@ -36,8 +38,8 @@ export default class Server {
   }
 
   handleErrors() {
-    // this.app.use(errorHandler);
-    // this.app.use(routeNotFound);
+    this.app.use(errorHandler);
+    this.app.use(routeNotFound);
   }
 
   routes() {
