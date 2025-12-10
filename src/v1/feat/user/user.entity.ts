@@ -42,6 +42,9 @@ export class User {
 
   @Column({ type: 'timestamp', nullable: true })
   createdAt!: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  updatedAt!: Date;
 }
 
 // export const userRepo = AppDataSource.getRepository(User);

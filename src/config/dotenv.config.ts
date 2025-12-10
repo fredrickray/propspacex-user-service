@@ -1,9 +1,11 @@
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import * as grpc from '@grpc/grpc-js';
 dotenv.config();
 
 const DotenvConfig = {
   serverPort: process.env.PORT as unknown as number,
+  grpcPort: process.env.GRPC_PORT as unknown as number,
   Database: {
     type: process.env.DB_TYPE as string,
     host: process.env.DB_HOST as string,

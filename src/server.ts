@@ -1,20 +1,30 @@
 import express, { Application } from 'express';
 import bodyParser from 'body-parser';
+import * as grpc from '@grpc/grpc-js';
 import { AppDataSource } from '@config/data.source';
 import indexRouter from './v1/route';
+import DotenvConfig from '@config/dotenv.config';
+import UserServiceImpl from '@grpc/server/user.server';
+import { Protos } from './grpc';
 export default class Server {
   public app: Application;
+  private grpcServer: grpc.Server;
+  private grpcPort: number;
 
   constructor() {
     this.app = express();
+    this.grpcServer = new grpc.Server();
+    this.grpcPort = DotenvConfig.grpcPort;
     console.log('Registering middlewares...');
-    // this.initializeMiddlewares();
-    // console.log("Registering routes...");
-    // this.routes();
-    // console.log("Registering error handlers...");
-    // this.handleErrors();
+    this.initializeMiddlewares();
+    console.log('Registering routes...');
+    this.routes();
+    console.log('Registering error handlers...');
+    this.handleErrors();
     console.log('Connecting to database...');
     this.connectDatabase();
+    console.log('Setting up gRPC server...');
+    this.setupGrpcServer();
     this.setupGracefulShutdown();
   }
 
@@ -50,14 +60,63 @@ export default class Server {
     }
   }
 
-  setupGracefulShutdown() {
-    const gracefulShutdown = (signal: string) => {
-      console.log(`\nReceived ${signal}, cleaning up WebSocket connections...`);
+  setupGrpcServer() {
+    try {
+      const userService = new UserServiceImpl();
 
-      // this.app.close(() => {
-      //   console.log('Server closed gracefully');
-      //   process.exit(0);
-      // });
+      // Add user service to gRPC server
+      this.grpcServer.addService(Protos.user.UserService.service, {
+        getUser: userService.getUser,
+        getUserEmail: userService.getUserEmail,
+        // listUsers: userService.listUsers,
+      });
+
+      console.log('gRPC services registered successfully');
+    } catch (error) {
+      console.error('Error setting up gRPC server:', error);
+      throw error;
+    }
+  }
+
+  startGrpcServer() {
+    return new Promise<void>((resolve, reject) => {
+      this.grpcServer.bindAsync(
+        `0.0.0.0:${this.grpcPort}`,
+        grpc.ServerCredentials.createInsecure(),
+        (err, port) => {
+          if (err) {
+            console.error('Failed to start gRPC server:', err);
+            reject(err);
+            return;
+          }
+          console.log(`🚀 gRPC server running on port ${port}`);
+          resolve();
+        }
+      );
+    });
+  }
+
+  setupGracefulShutdown() {
+    const gracefulShutdown = async (signal: string) => {
+      console.log(`\nReceived ${signal}, cleaning up...`);
+
+      this.grpcServer.tryShutdown(async (err) => {
+        if (err) {
+          console.error('Error shutting down gRPC server:', err);
+        } else {
+          console.log('gRPC server closed gracefully');
+        }
+
+        // Closing database connection
+        try {
+          await AppDataSource.destroy();
+          console.log('Database connection closed');
+        } catch (error) {
+          console.error('Error closing database:', error);
+        }
+
+        process.exit(0);
+      });
 
       // Force close after 10 seconds
       setTimeout(() => {
@@ -71,7 +130,6 @@ export default class Server {
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-    // Handle uncaught exceptions
     process.on('uncaughtException', (error) => {
       console.error('Uncaught Exception:', error);
       gracefulShutdown('UNCAUGHT_EXCEPTION');
@@ -83,15 +141,26 @@ export default class Server {
     });
   }
 
-  start(port: number) {
-    this.app.listen(port, () => {
-      console.log(`Server initialized and ready for action! 🤖`);
-      console.log('     /\\_/\\');
-      console.log('    / o o \\');
-      console.log('   (   "   )');
-      console.log('    \\~(*)~/');
-      console.log('     /___\\');
-      console.log('Welcome to the enchanted forest of code!');
-    });
+  async start(port: number) {
+    try {
+      this.app.listen(port, () => {
+        console.log(`Server initialized and ready for action! 🤖`);
+        console.log('     /\\_/\\');
+        console.log('    / o o \\');
+        console.log('   (   "   )');
+        console.log('    \\~(*)~/');
+        console.log('     /___\\');
+        console.log('Welcome to the enchanted forest of code!');
+
+        this.startGrpcServer();
+
+        console.log('\n✅ All servers started successfully!');
+        console.log(`📡 HTTP API: http://localhost:${port}`);
+        console.log(`🔌 gRPC Service: localhost:${this.grpcPort}`);
+      });
+    } catch (error) {
+      console.error('Failed to start servers:', error);
+      process.exit(1);
+    }
   }
 }

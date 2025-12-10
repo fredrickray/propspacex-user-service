@@ -21,7 +21,8 @@
       "@auth/*": ["src/v1/feat/auth/*"],
       "@utils/*": ["src/utils/*"],
       "@user/*": ["src/v1/feat/user/*"],
-      "@validations/*": ["src/validations/*"]
+      "@validations/*": ["src/validations/*"],
+      "@grpc/*": ["src/grpc/*"]
     }
   },
   "exclude": ["node_modules"]
