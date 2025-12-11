@@ -21,6 +21,7 @@
       "@auth/*": ["src/v1/feat/auth/*"],
       "@utils/*": ["src/utils/*"],
       "@user/*": ["src/v1/feat/user/*"],
+      "@security/*": ["src/v1/feat/security/*"],
       "@validations/*": ["src/validations/*"],
       "@grpc/*": ["src/grpc/*"]
     }
