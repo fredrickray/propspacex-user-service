@@ -27,10 +27,12 @@ import {
 import DeviceService from '@security/device.service';
 import ActivityService from '@security/activity.service';
 import { Event } from '@security/activity.type';
+import { MailServiceClient, getMailClient } from '@grpc/client/mail.client';
 
 const userRepo = AppDataSource.getRepository(User);
 const loginAttemptRepo = AppDataSource.getRepository(LoginAttempt);
 const tokenRepo = AppDataSource.getRepository(Token);
+const mailClient = getMailClient();
 
 export default class AuthService {
   private static JWT_OPTIONS: SignOptions = {
@@ -53,6 +55,7 @@ export default class AuthService {
     const exisitingUser = await userRepo.findOneBy({ email: payload.email });
     if (exisitingUser) throw new BadRequest('Email already exists');
 
+    const otp = generateOTP();
     const hashedPassword = await this.hashPassword(payload.password);
 
     const newUser = userRepo.create({
@@ -64,6 +67,15 @@ export default class AuthService {
     });
 
     await userRepo.save(newUser);
+
+    await tokenRepo.save(
+      tokenRepo.create({
+        userId: newUser.id,
+        token: await bcrypt.hash(otp, DotenvConfig.BcryptSalt),
+        tokenType: TokenType.EMAIL_VERIFICATION,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+      })
+    );
 
     await ActivityService.log(Event.USER_REGISTERED, {
       userId: newUser.id,
@@ -80,6 +92,11 @@ export default class AuthService {
       isTrusted: false,
     });
 
+    console.log('email', newUser.email);
+    await mailClient.sendVerificationEmail({
+      recipientEmail: newUser.email,
+      verificationCode: otp,
+    });
     return newUser;
   }
 
@@ -165,6 +182,12 @@ export default class AuthService {
 
     if (!existingToken) throw new BadRequest('Verification token not found');
 
+    // Check if token has expired
+    if (existingToken.expiresAt && new Date() > existingToken.expiresAt) {
+      await tokenRepo.delete({ id: existingToken.id });
+      throw new Unauthorized('OTP has expired. Please request a new one.');
+    }
+
     const isTokenValid = verifyOTP(otp, existingToken.token);
     if (!isTokenValid) {
       await ActivityService.log(Event.EMAIL_VERIFICATION_FAILED, {
@@ -188,6 +211,11 @@ export default class AuthService {
       userAgent,
       location,
       metadata: { email: user.email },
+    });
+
+    await mailClient.sendWelcomeEmail({
+      recipientEmail: user.email,
+      firstName: user.firstName,
     });
 
     return true;
@@ -223,6 +251,7 @@ export default class AuthService {
         userId: user.id,
         token: hashedOTP,
         tokenType: TokenType.EMAIL_VERIFICATION,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
       })
     );
 
@@ -265,6 +294,7 @@ export default class AuthService {
         userId: existingUser.id,
         token: hashedOTP,
         tokenType: TokenType.RESET_PASSWORD,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
       })
     );
 
@@ -398,6 +428,7 @@ export default class AuthService {
         userId: user.id,
         token: hashedToken,
         tokenType: TokenType.EMAIL_VERIFICATION,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
       })
     );
 

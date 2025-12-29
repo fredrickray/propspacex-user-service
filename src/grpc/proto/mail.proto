@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package mail;
+
+// Main Mail Service definition
+service MailerService {
+    // Generic email sending
+    rpc SendEmail (SendEmailRequest) returns (SendEmailResponse);
+    
+    // Template-based emails
+    rpc SendWelcomeEmail (WelcomeEmailRequest) returns (SendEmailResponse);
+    rpc SendVerificationEmail (VerificationEmailRequest) returns (SendEmailResponse);
+    rpc SendPasswordResetEmail (PasswordResetEmailRequest) returns (SendEmailResponse);
+    rpc SendPasswordChangedEmail (PasswordChangedEmailRequest) returns (SendEmailResponse);
+    rpc SendLoginAlertEmail (LoginAlertEmailRequest) returns (SendEmailResponse);
+    rpc SendInvitationEmail (InvitationEmailRequest) returns (SendEmailResponse);
+    rpc SendNotificationEmail (NotificationEmailRequest) returns (SendEmailResponse);
+    
+    // Bulk operations
+    rpc SendBulkEmail (BulkEmailRequest) returns (BulkEmailResponse);
+    
+    // Health check
+    rpc CheckHealth (HealthRequest) returns (HealthResponse);
+}
+
+// ==================== Request Messages ====================
+
+message SendEmailRequest {
+    string recipient_email = 1;
+    string subject = 2;
+    string body_html = 3;
+    string template_name = 4;           // Optional: use template instead of body_html
+    map<string, string> placeholders = 5; // Template placeholders
+}
+
+message WelcomeEmailRequest {
+    string recipient_email = 1;
+    string first_name = 2;
+}
+
+message VerificationEmailRequest {
+    string recipient_email = 1;
+    string verification_code = 2;       // OTP or verification code (6-digit)
+}
+
+
+message PasswordResetEmailRequest {
+    string recipient_email = 1;
+    string first_name = 2;
+    string reset_link = 3;
+    string reset_code = 4;              // Optional OTP
+    int32 expiry_minutes = 5;
+}
+
+message PasswordChangedEmailRequest {
+    string recipient_email = 1;
+    string first_name = 2;
+    string changed_at = 3;              // ISO timestamp
+    string ip_address = 4;
+    string device_info = 5;
+    string location = 6;
+}
+
+message LoginAlertEmailRequest {
+    string recipient_email = 1;
+    string first_name = 2;
+    string login_time = 3;              // ISO timestamp
+    string ip_address = 4;
+    string device_info = 5;
+    string location = 6;
+    bool is_new_device = 7;
+}
+
+message InvitationEmailRequest {
+    string recipient_email = 1;
+    string inviter_name = 2;
+    string organization_name = 3;
+    string role = 4;
+    string invitation_link = 5;
+    int32 expiry_days = 6;
+}
+
+message NotificationEmailRequest {
+    string recipient_email = 1;
+    string first_name = 2;
+    string subject = 3;
+    string title = 4;
+    string message = 5;
+    string action_link = 6;
+    string action_text = 7;
+    string notification_type = 8;       // e.g., "info", "warning", "success"
+}
+
+message BulkEmailRequest {
+    repeated string recipient_emails = 1;
+    string subject = 2;
+    string template_name = 3;
+    map<string, string> placeholders = 4;
+}
+
+message HealthRequest {
+    string service_name = 1;
+}
+
+// ==================== Response Messages ====================
+
+message SendEmailResponse {
+    bool success = 1;
+    string message_id = 2;              // Unique ID from the mail system
+    string status_message = 3;          // "Queued", "Sent", or "Error: ..."
+    string queued_at = 4;               // ISO timestamp when queued
+}
+
+message BulkEmailResponse {
+    bool success = 1;
+    int32 total_queued = 2;
+    int32 total_failed = 3;
+    repeated string failed_emails = 4;
+    string status_message = 5;
+}
+
+message HealthResponse {
+    enum Status {
+        UNKNOWN = 0;
+        SERVING = 1;
+        NOT_SERVING = 2;
+    }
+    Status status = 1;
+    string version = 2;
+    string uptime = 3;
+}
