@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { Unauthorized } from '@middlewares/error.middleware';
 import AuthService from './auth.service';
+import { extractClientInfo } from '@utils/request.utils';
+
 export default class AuthController {
   static async signup(req: Request, res: Response, next: NextFunction) {
     try {
-      const payload = req.body;
+      const { ipAddress, userAgent, location } = extractClientInfo(req);
 
-      await AuthService.signup(payload);
+      await AuthService.signup(req.body, ipAddress, userAgent, location);
 
       res.setHeader('Access-Control-Allow-Credentials', 'true');
 
@@ -24,7 +26,15 @@ export default class AuthController {
     try {
       let { email, otp } = req.body;
 
-      await AuthService.verifyOTP(email as string, otp as string);
+      const { ipAddress, userAgent, location } = extractClientInfo(req);
+
+      await AuthService.verifyOTP(
+        email as string,
+        otp as string,
+        ipAddress,
+        userAgent,
+        location
+      );
 
       res.status(200).json({
         success: true,
@@ -38,11 +48,12 @@ export default class AuthController {
   static async resendOTP(req: Request, res: Response, next: NextFunction) {
     try {
       let { email } = req.body;
+      const { ipAddress, userAgent, location } = extractClientInfo(req);
       if (!email) {
         throw new Unauthorized('Email is required');
       }
 
-      await AuthService.resendOTP(email);
+      await AuthService.resendOTP(email, ipAddress, userAgent, location);
       res.status(200).json({
         success: true,
         message: 'Resent OTP sent successfully',
@@ -54,16 +65,20 @@ export default class AuthController {
 
   static async signin(req: Request, res: Response, next: NextFunction) {
     try {
-      let { email, password, rememberMe, deviceToken, deviceType } = req.body;
+      let { email, password, rememberMe } = req.body;
+      const { ipAddress, userAgent, location } = extractClientInfo(req);
 
-      const { accessToken, refreshToken, user } = await AuthService.signin(
-        {
-          email,
-          password,
-          rememberMe,
-        },
-        req.ip as string
-      );
+      const { accessToken, refreshToken, user, device } =
+        await AuthService.signin(
+          {
+            email,
+            password,
+            rememberMe,
+          },
+          ipAddress!,
+          userAgent,
+          location
+        );
 
       res.setHeader('Access-Control-Allow-Credentials', 'true');
       res.setHeader('at', accessToken);
@@ -72,9 +87,25 @@ export default class AuthController {
       res.status(200).json({
         success: true,
         message: 'Signin successful',
-        accessToken,
-        refreshToken,
-        user,
+        data: {
+          accessToken,
+          refreshToken,
+          user: {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            appRole: user.appRole,
+            isVerified: user.isVerified,
+          },
+          device: {
+            deviceId: device.deviceId,
+            deviceType: device.deviceType,
+            location: device.location,
+            isTrusted: device.isTrusted,
+            lastActive: device.lastActive,
+          },
+        },
       });
     } catch (error) {
       console.log(error);
