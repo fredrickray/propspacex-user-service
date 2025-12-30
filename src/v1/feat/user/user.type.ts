@@ -19,6 +19,7 @@ export interface IUser {
   password: string;
   appRole: AppRoles;
   reAuth?: boolean;
+  tokenVersion: number;
   isVerified: boolean;
   isAccountActive: boolean;
   lastLoginDate: Date;
