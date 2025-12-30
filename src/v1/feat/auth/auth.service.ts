@@ -263,6 +263,11 @@ export default class AuthService {
       metadata: { email: user.email },
     });
 
+    await mailClient.sendVerificationEmail({
+      recipientEmail: user.email,
+      verificationCode: otp,
+    });
+
     return user;
   }
 
@@ -304,6 +309,12 @@ export default class AuthService {
       userAgent,
       location,
       metadata: { email: existingUser.email },
+    });
+
+    await mailClient.sendPasswordResetEmail({
+      recipientEmail: existingUser.email,
+      firstName: existingUser.firstName,
+      resetLink: `${DotenvConfig.frontendBaseURL}/resetpassword?token=${otp}&id=${token.id}`,
     });
 
     return token;
