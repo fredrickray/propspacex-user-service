@@ -2,14 +2,17 @@ import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
 import { AppDataSource } from '@config/data.source';
 
 @Entity('Device')
+@Index(['userId', 'deviceId']) // Composite index for common queries
 export class Device {
   @Index()
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Index()
   @Column({ type: 'varchar' })
   userId!: string;
 
+  @Index()
   @Column({ type: 'varchar' })
   deviceId!: string;
 

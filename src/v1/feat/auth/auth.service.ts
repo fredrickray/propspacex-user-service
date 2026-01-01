@@ -77,7 +77,8 @@ export default class AuthService {
       })
     );
 
-    await ActivityService.log(Event.USER_REGISTERED, {
+    // Fire-and-forget: non-critical operations
+    ActivityService.log(Event.USER_REGISTERED, {
       userId: newUser.id,
       ip: ipAddress,
       userAgent,
@@ -86,13 +87,13 @@ export default class AuthService {
         email: newUser.email,
         appRole: newUser.appRole,
       },
-    });
+    }).catch((err) => console.error('Activity log error:', err));
 
-    await DeviceService.registerOrUpdate(newUser.id, ipAddress, userAgent, {
+    DeviceService.registerOrUpdate(newUser.id, ipAddress, userAgent, {
       isTrusted: false,
-    });
+    }).catch((err) => console.error('Device registration error:', err));
 
-    console.log('email', newUser.email);
+    // Send verification email (still awaited - critical for user flow)
     await mailClient.sendVerificationEmail({
       recipientEmail: newUser.email,
       verificationCode: otp,
@@ -147,8 +148,8 @@ export default class AuthService {
       { isTrusted: false }
     );
 
-    // Log successful login
-    await ActivityService.log(Event.LOGIN_SUCCESS, {
+    // Fire-and-forget: activity logging
+    ActivityService.log(Event.LOGIN_SUCCESS, {
       userId: user.id,
       ip: ipAddress,
       userAgent,
@@ -157,7 +158,7 @@ export default class AuthService {
       metadata: {
         deviceType: device.deviceType,
       },
-    });
+    }).catch((err) => console.error('Activity log error:', err));
 
     const { accessToken, refreshToken } = await this.generateTokens(user);
     return { accessToken, refreshToken, user, device };
@@ -205,13 +206,14 @@ export default class AuthService {
 
     await tokenRepo.delete({ id: existingToken.id });
 
-    await ActivityService.log(Event.EMAIL_VERIFIED, {
+    // Fire-and-forget: activity logging
+    ActivityService.log(Event.EMAIL_VERIFIED, {
       userId: user.id,
       ip: ipAddress,
       userAgent,
       location,
       metadata: { email: user.email },
-    });
+    }).catch((err) => console.error('Activity log error:', err));
 
     await mailClient.sendWelcomeEmail({
       recipientEmail: user.email,
@@ -255,13 +257,14 @@ export default class AuthService {
       })
     );
 
-    await ActivityService.log(Event.OTP_RESENT, {
+    // Fire-and-forget: activity logging
+    ActivityService.log(Event.OTP_RESENT, {
       userId: user.id,
       ip: ipAddress,
       userAgent,
       location,
       metadata: { email: user.email },
-    });
+    }).catch((err) => console.error('Activity log error:', err));
 
     await mailClient.sendVerificationEmail({
       recipientEmail: user.email,
@@ -303,13 +306,14 @@ export default class AuthService {
       })
     );
 
-    await ActivityService.log(Event.PASSWORD_RESET_REQUESTED, {
+    // Fire-and-forget: activity logging
+    ActivityService.log(Event.PASSWORD_RESET_REQUESTED, {
       userId: existingUser.id,
       ip: ipAddress,
       userAgent,
       location,
       metadata: { email: existingUser.email },
-    });
+    }).catch((err) => console.error('Activity log error:', err));
 
     await mailClient.sendPasswordResetEmail({
       recipientEmail: existingUser.email,
@@ -339,13 +343,14 @@ export default class AuthService {
       tokenType: TokenType.RESET_PASSWORD,
     });
 
-    await ActivityService.log(Event.PASSWORD_RESET_SUCCESS, {
+    // Fire-and-forget: activity logging
+    ActivityService.log(Event.PASSWORD_RESET_SUCCESS, {
       userId: user.id,
       ip: ipAddress,
       userAgent,
       location,
       metadata: { email: user.email },
-    });
+    }).catch((err) => console.error('Activity log error:', err));
 
     return true;
   }
@@ -356,12 +361,13 @@ export default class AuthService {
     userAgent?: string,
     location?: string
   ) {
-    await ActivityService.log(Event.LOGOUT, {
+    // Fire-and-forget: activity logging
+    ActivityService.log(Event.LOGOUT, {
       userId,
       ip: ipAddress,
       userAgent,
       location,
-    });
+    }).catch((err) => console.error('Activity log error:', err));
 
     return true;
   }
@@ -445,6 +451,15 @@ export default class AuthService {
 
     const verifyURL = `${DotenvConfig.frontendBaseURL}/verifyemail?id=${token.id}&token=${verifyToken}`;
     // await EmailService.sendMailTemplate('verifyEmailTemplate', user.email, { username: user.firstName, link: verifyURL });
+    await mailClient.sendEmail({
+      recipientEmail: user.email,
+      subject: 'Verify Your Email Address',
+      templateName: 'unverifiedAccount',
+      placeholders: {
+        first_name: user.firstName,
+        verify_link: verifyURL,
+      },
+    });
 
     throw new Unauthorized(
       `Account not verified. A verification link has been sent to ${user.email}.`
