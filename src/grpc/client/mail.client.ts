@@ -313,7 +313,7 @@ let defaultClient: MailServiceClient | null = null;
 export const getMailClient = (address?: string): MailServiceClient => {
   if (!defaultClient) {
     const serverAddress =
-      address || process.env.MAIL_SERVICE_GRPC_URL || 'localhost:50051';
+      address || process.env.MAIL_SERVICE_GRPC_URL || 'localhost:50056';
     defaultClient = new MailServiceClient(serverAddress);
   }
   return defaultClient;
