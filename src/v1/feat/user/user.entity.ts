@@ -21,6 +21,12 @@ export class User {
   @Column({ type: 'varchar' })
   password!: string;
 
+  @Column({ type: 'jsonb', nullable: true })
+  profileImage!: {
+    url: string;
+    mediaId: string;
+  };
+
   @Column({ type: 'enum', enum: AppRoles, default: AppRoles.BUYER })
   appRole!: AppRoles;
 
