@@ -37,9 +37,9 @@ const DotenvConfig = {
     refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET as string,
   },
   TokenExpiry: {
-    accessToken: parseInt(process.env.ACCESS_TOKEN_EXPIRY as string),
-    refreshToken: parseInt(process.env.REFRESH_TOKEN_EXPIRY as string),
-    rememberMe: parseInt(process.env.REMEMBER_ME_EXPIRY as string),
+    accessToken: process.env.ACCESS_TOKEN_EXPIRY,
+    refreshToken: process.env.REFRESH_TOKEN_EXPIRY,
+    rememberMe: process.env.REMEMBER_ME_EXPIRY,
   },
   Cors: {
     origin: process.env.CORS_ORIGIN as string,
