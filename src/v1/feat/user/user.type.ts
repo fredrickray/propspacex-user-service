@@ -17,6 +17,10 @@ export interface IUser {
   lastName: string;
   email: string;
   password: string;
+  profileImage: {
+    url: string;
+    mediaId: string;
+  };
   appRole: AppRoles;
   reAuth?: boolean;
   tokenVersion: number;
