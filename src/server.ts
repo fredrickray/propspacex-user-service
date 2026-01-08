@@ -68,13 +68,22 @@ export default class Server {
 
       // Add user service to gRPC server
       this.grpcServer.addService(Protos.user.UserService.service, {
+        // User methods
         getUser: userService.getUser,
         getUserEmail: userService.getUserEmail,
+        // listUsers: userService.listUsers,
+
+        // Auth methods
         signin: userService.signin,
         signup: userService.signup,
         verifyOTP: userService.verifyOTP,
         resendOTP: userService.resendOTP,
-        // listUsers: userService.listUsers,
+
+        // Security & Device Management methods (for API Gateway)
+        validateToken: userService.validateToken,
+        registerDevice: userService.registerDevice,
+        logActivity: userService.logActivity,
+        checkDeviceTrust: userService.checkDeviceTrust,
       });
 
       console.log('gRPC services registered successfully');

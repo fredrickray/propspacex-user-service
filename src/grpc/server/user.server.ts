@@ -3,20 +3,24 @@ import { Protos } from '../index';
 import DotenvConfig from '@config/dotenv.config';
 import UserService from '@user/user.service';
 import AuthService from '@auth/auth.service';
+import DeviceService from '@security/device.service';
+import ActivityService from '@security/activity.service';
+import { Event } from '@security/activity.type';
+import { TokenType } from '@auth/auth.type';
 
 export default class UserServiceImpl {
   getUser = async (call: any, callback: any) => {
     try {
-      const { id } = call.request;
+      const { userId } = call.request;
 
-      if (!id) {
+      if (!userId) {
         return callback({
           code: grpc.status.INVALID_ARGUMENT,
           message: 'User ID is required',
         });
       }
 
-      const user = await UserService.getUserById(id);
+      const user = await UserService.getUserById(userId);
 
       callback(null, {
         id: user.id,
@@ -261,6 +265,185 @@ export default class UserServiceImpl {
         message: '',
         error: error.message || 'Failed to resend OTP',
       });
+    }
+  };
+
+  // ==================== Security & Device Management ====================
+
+  /**
+   * Validate access token - called by API Gateway for authentication
+   */
+  validateToken = async (call: any, callback: any) => {
+    try {
+      const { accessToken } = call.request;
+
+      if (!accessToken) {
+        return callback(null, {
+          valid: false,
+          userId: '',
+          email: '',
+          appRole: '',
+          isVerified: false,
+          isAccountActive: false,
+          error: 'Access token is required',
+        });
+      }
+
+      // Verify the JWT token
+      const decoded = await AuthService.verifyJWT(
+        accessToken,
+        TokenType.ACCESS
+      );
+      const userId = decoded.sub as string;
+
+      // Get user from database
+      const user = await UserService.getUserById(userId);
+
+      callback(null, {
+        valid: true,
+        userId: user.id,
+        email: user.email,
+        appRole: user.appRole || 'buyer',
+        isVerified: user.isVerified,
+        isAccountActive: user.isAccountActive,
+        error: '',
+      });
+    } catch (error: any) {
+      console.error('gRPC Error - validateToken:', error);
+
+      callback(null, {
+        valid: false,
+        userId: '',
+        email: '',
+        appRole: '',
+        isVerified: false,
+        isAccountActive: false,
+        error: error.message || 'Invalid or expired token',
+      });
+    }
+  };
+
+  /**
+   * Register or update device for a user
+   */
+  registerDevice = async (call: any, callback: any) => {
+    try {
+      const { userId, ipAddress, userAgent, isTrusted } = call.request;
+
+      if (!userId) {
+        return callback(null, {
+          success: false,
+          deviceId: '',
+          isNewDevice: false,
+          isSuspicious: false,
+        });
+      }
+
+      // Check if device already exists
+      const existingDevices = await DeviceService.listDevicesForUser(userId);
+      const existingDevice = existingDevices.find(
+        (d) => d.ipAddress === ipAddress && d.userAgent === userAgent
+      );
+
+      const isNewDevice = !existingDevice;
+
+      // Register or update the device
+      const device = await DeviceService.registerOrUpdate(
+        userId,
+        ipAddress,
+        userAgent,
+        { isTrusted: isTrusted || false }
+      );
+
+      // Check for suspicious activity (new location, new device type, etc.)
+      let isSuspicious = false;
+      if (isNewDevice && existingDevices.length > 0) {
+        // It's suspicious if it's a new device and user already has other devices
+        const knownLocations = existingDevices
+          .map((d) => d.location)
+          .filter(Boolean);
+        const newLocation = DeviceService.lookupLocation(ipAddress);
+
+        if (newLocation && !knownLocations.includes(newLocation)) {
+          isSuspicious = true;
+        }
+      }
+
+      callback(null, {
+        success: true,
+        deviceId: device.deviceId,
+        isNewDevice,
+        isSuspicious,
+      });
+    } catch (error: any) {
+      console.error('gRPC Error - registerDevice:', error);
+
+      callback(null, {
+        success: false,
+        deviceId: '',
+        isNewDevice: false,
+        isSuspicious: false,
+      });
+    }
+  };
+
+  /**
+   * Log user activity for audit trail
+   */
+  logActivity = async (call: any, callback: any) => {
+    try {
+      const { event, userId, ipAddress, userAgent, deviceId, metadata } =
+        call.request;
+
+      if (!event) {
+        return callback(null, { success: false });
+      }
+
+      // Parse metadata if provided
+      let parsedMetadata: Record<string, any> | null = null;
+      if (metadata) {
+        try {
+          parsedMetadata = JSON.parse(metadata);
+        } catch {
+          parsedMetadata = { raw: metadata };
+        }
+      }
+
+      // Map string event to Event enum or use as custom event
+      const eventType = (Event as any)[event] || event;
+
+      await ActivityService.log(eventType, {
+        userId: userId || null,
+        ip: ipAddress || null,
+        userAgent: userAgent || null,
+        deviceId: deviceId || null,
+        metadata: parsedMetadata,
+      });
+
+      callback(null, { success: true });
+    } catch (error: any) {
+      console.error('gRPC Error - logActivity:', error);
+      callback(null, { success: false });
+    }
+  };
+
+  /**
+   * Check if a device is trusted for sensitive operations
+   */
+  checkDeviceTrust = async (call: any, callback: any) => {
+    try {
+      const { userId, deviceId } = call.request;
+
+      if (!userId || !deviceId) {
+        return callback(null, { isTrusted: false });
+      }
+
+      const isTrusted = await DeviceService.isDeviceTrusted(userId, deviceId);
+
+      callback(null, { isTrusted });
+    } catch (error: any) {
+      console.error('gRPC Error - checkDeviceTrust:', error);
+      callback(null, { isTrusted: false });
     }
   };
 }
