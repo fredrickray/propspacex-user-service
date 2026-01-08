@@ -15,14 +15,15 @@ export default class DeviceService {
     ipAddress?: string,
     userAgent?: string,
     opts?: { isTrusted?: boolean }
-  ) {
+  ): Promise<{ device: Device; isNewDevice: boolean; isSuspicious: boolean }> {
     const existing = await deviceRepo.findOne({
       where: { userId, userAgent, ipAddress },
     });
     if (existing) {
       existing.lastActive = new Date();
       if (opts?.isTrusted !== undefined) existing.isTrusted = !!opts.isTrusted;
-      return await deviceRepo.save(existing);
+      const device = await deviceRepo.save(existing);
+      return { device, isNewDevice: false, isSuspicious: false };
     }
     const deviceId = generateRandomHexString(32);
     const deviceType = DeviceService.detectDeviceType(userAgent);
@@ -45,9 +46,12 @@ export default class DeviceService {
 
     const savedDevice = await deviceRepo.save(device);
 
-    await this.checkForSuspiciousDevice(userId, savedDevice);
+    const isSuspicious = await this.checkForSuspiciousDevice(
+      userId,
+      savedDevice
+    );
 
-    return savedDevice;
+    return { device: savedDevice, isNewDevice: true, isSuspicious };
   }
 
   static async trustDevice(userId: string, deviceId: string) {
@@ -147,7 +151,7 @@ export default class DeviceService {
   private static async checkForSuspiciousDevice(
     userId: string,
     newDevice: Device
-  ) {
+  ): Promise<boolean> {
     const userDevices = await deviceRepo.find({
       where: { userId, isRevoked: false },
       order: { lastActive: 'DESC' },
@@ -164,7 +168,7 @@ export default class DeviceService {
     const isNewDeviceType = !knownDeviceTypes.includes(newDevice.deviceType);
 
     // If new location or device type, flag as suspicious
-    if (isNewLocation || (isNewDeviceType && userDevices.length > 0)) {
+    if (isNewLocation || (isNewDeviceType && userDevices.length > 1)) {
       await ActivityService.log(Event.SUSPICIOUS_ACTIVITY, {
         userId,
         deviceId: newDevice.deviceId,
@@ -181,7 +185,10 @@ export default class DeviceService {
 
       // Send security alert
       await SecurityAlertService.sendNewDeviceAlert(userId, newDevice);
+      return true;
     }
+
+    return false;
   }
 
   static async listDevicesForUser(userId: string) {

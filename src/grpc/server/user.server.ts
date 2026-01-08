@@ -318,7 +318,7 @@ export default class UserServiceImpl {
         appRole: '',
         isVerified: false,
         isAccountActive: false,
-        error: error.message || 'Invalid or expired token',
+        error: 'Invalid or expired token',
       });
     }
   };
@@ -336,44 +336,33 @@ export default class UserServiceImpl {
           deviceId: '',
           isNewDevice: false,
           isSuspicious: false,
+          error: 'User ID is required',
         });
       }
 
-      // Check if device already exists
-      const existingDevices = await DeviceService.listDevicesForUser(userId);
-      const existingDevice = existingDevices.find(
-        (d) => d.ipAddress === ipAddress && d.userAgent === userAgent
-      );
-
-      const isNewDevice = !existingDevice;
-
-      // Register or update the device
-      const device = await DeviceService.registerOrUpdate(
-        userId,
-        ipAddress,
-        userAgent,
-        { isTrusted: isTrusted || false }
-      );
-
-      // Check for suspicious activity (new location, new device type, etc.)
-      let isSuspicious = false;
-      if (isNewDevice && existingDevices.length > 0) {
-        // It's suspicious if it's a new device and user already has other devices
-        const knownLocations = existingDevices
-          .map((d) => d.location)
-          .filter(Boolean);
-        const newLocation = DeviceService.lookupLocation(ipAddress);
-
-        if (newLocation && !knownLocations.includes(newLocation)) {
-          isSuspicious = true;
-        }
+      // Validate IP address format if provided
+      if (ipAddress && !this.isValidIpAddress(ipAddress)) {
+        return callback(null, {
+          success: false,
+          deviceId: '',
+          isNewDevice: false,
+          isSuspicious: false,
+          error: 'Invalid IP address format',
+        });
       }
+
+      // Register or update the device (DeviceService handles suspicious activity detection internally)
+      const { device, isNewDevice, isSuspicious } =
+        await DeviceService.registerOrUpdate(userId, ipAddress, userAgent, {
+          isTrusted: isTrusted || false,
+        });
 
       callback(null, {
         success: true,
         deviceId: device.deviceId,
         isNewDevice,
         isSuspicious,
+        error: '',
       });
     } catch (error: any) {
       console.error('gRPC Error - registerDevice:', error);
@@ -383,9 +372,24 @@ export default class UserServiceImpl {
         deviceId: '',
         isNewDevice: false,
         isSuspicious: false,
+        error: 'Failed to register device',
       });
     }
   };
+
+  /**
+   * Validate IP address format (IPv4 or IPv6)
+   */
+  private isValidIpAddress(ip: string): boolean {
+    // IPv4 pattern
+    const ipv4Pattern =
+      /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    // IPv6 pattern (simplified)
+    const ipv6Pattern = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^::$/;
+    // Also allow 'unknown' as it's used when IP can't be determined
+    if (ip === 'unknown') return true;
+    return ipv4Pattern.test(ip) || ipv6Pattern.test(ip);
+  }
 
   /**
    * Log user activity for audit trail
@@ -410,9 +414,14 @@ export default class UserServiceImpl {
       }
 
       // Map string event to Event enum or use as custom event
-      const eventType = (Event as any)[event] || event;
+      const eventType = (Event as any)[event];
+      if (!eventType) {
+        console.warn(
+          `gRPC Warning - logActivity: Unrecognized event type '${event}', using as custom event`
+        );
+      }
 
-      await ActivityService.log(eventType, {
+      await ActivityService.log(eventType || event, {
         userId: userId || null,
         ip: ipAddress || null,
         userAgent: userAgent || null,
@@ -420,10 +429,10 @@ export default class UserServiceImpl {
         metadata: parsedMetadata,
       });
 
-      callback(null, { success: true });
+      callback(null, { success: true, error: '' });
     } catch (error: any) {
       console.error('gRPC Error - logActivity:', error);
-      callback(null, { success: false });
+      callback(null, { success: false, error: 'Failed to log activity' });
     }
   };
 
