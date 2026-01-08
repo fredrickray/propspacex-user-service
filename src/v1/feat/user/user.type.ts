@@ -17,7 +17,7 @@ export interface IUser {
   lastName: string;
   email: string;
   password: string;
-  profileImage: {
+  profileImage?: {
     url: string;
     mediaId: string;
   };
