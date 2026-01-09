@@ -141,7 +141,7 @@ export default class AuthService {
 
     await this.resetLoginAttempts(user);
 
-    const device = await DeviceService.registerOrUpdate(
+    const { device } = await DeviceService.registerOrUpdate(
       user.id,
       ipAddress,
       userAgent,
