@@ -37,9 +37,11 @@ const DotenvConfig = {
     refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET as string,
   },
   TokenExpiry: {
-    accessToken: process.env.ACCESS_TOKEN_EXPIRY,
-    refreshToken: process.env.REFRESH_TOKEN_EXPIRY,
-    rememberMe: process.env.REMEMBER_ME_EXPIRY,
+    accessToken: process.env
+      .ACCESS_TOKEN_EXPIRY as jwt.SignOptions['expiresIn'],
+    refreshToken: process.env
+      .REFRESH_TOKEN_EXPIRY as jwt.SignOptions['expiresIn'],
+    rememberMe: process.env.REMEMBER_ME_EXPIRY as jwt.SignOptions['expiresIn'],
   },
   Cors: {
     origin: process.env.CORS_ORIGIN as string,
