@@ -143,7 +143,7 @@ export class MailServiceClient {
     private address: string,
     protoPath?: string
   ) {
-    const PROTO_PATH = protoPath || path.join(__dirname, '../proto/mail.proto');
+    const PROTO_PATH = protoPath || path.join(__dirname, '..', '..', '..', 'proto', 'mail', 'v1', 'mail.proto');
     const packageDefinition = protoLoader.loadSync(
       PROTO_PATH,
       protoLoaderOptions

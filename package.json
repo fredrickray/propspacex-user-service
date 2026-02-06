@@ -13,6 +13,7 @@
     "start": "node -r tsconfig-paths/register dist/index.js",
     "predev": "npm run migration:check:run",
     "dev": "tsx watch src/index.ts",
+    "proto:update": "git submodule update --remote proto",
     "lint": "eslint './src/**/*.{ts,tsx}'",
     "lint:fix": "eslint './src/**/*.{ts,tsx}' --fix",
     "format": "prettier --write .",
