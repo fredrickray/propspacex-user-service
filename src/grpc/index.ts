@@ -3,7 +3,7 @@ import * as protoLoader from '@grpc/proto-loader';
 import path from 'path';
 
 // Get the proto file path
-const PROTO_PATH = path.join(__dirname, 'proto', 'user.proto');
+const PROTO_PATH = path.join(__dirname, '..', '..', 'proto', 'user', 'v1', 'user.proto');
 
 console.log('📂 Loading proto from:', PROTO_PATH);
 
