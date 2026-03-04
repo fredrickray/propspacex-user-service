@@ -23,7 +23,8 @@
       "@user/*": ["src/v1/feat/user/*"],
       "@security/*": ["src/v1/feat/security/*"],
       "@validations/*": ["src/validations/*"],
-      "@grpc/*": ["src/grpc/*"]
+      "@grpc/*": ["src/grpc/*"],
+      "@migrations/*": ["src/migrations/*"]
     }
   },
   "exclude": ["node_modules"]
