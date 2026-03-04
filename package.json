@@ -7,7 +7,7 @@
     "clean": "rimraf dist",
     "type-check": "tsc --noEmit",
     "build:only": "tsc && tsc-alias",
-    "copy:protos": "cp -R src/protos dist/protos",
+    "copy:protos": "cp -R proto dist/proto",
     "build": "npm run clean && npm run build:only && npm run copy:protos",
     "prestart": "npm run build",
     "start": "node -r tsconfig-paths/register dist/index.js",
@@ -23,8 +23,8 @@
     "migration:run": "tsx ./node_modules/typeorm/cli.js migration:run -d src/config/data.source.ts",
     "migration:revert": "tsx ./node_modules/typeorm/cli.js migration:revert -d src/config/data.source.ts",
     "migration:show": "tsx ./node_modules/typeorm/cli.js migration:show -d src/config/data.source.ts",
-    "migration:check": "tsx scripts/check-migrations.ts",
-    "migration:check:run": "tsx scripts/check-migrations.ts --run"
+    "migration:check": "tsx src/scripts/check-migrations.ts",
+    "migration:check:run": "tsx src/scripts/check-migrations.ts --run"
   },
   "repository": {
     "type": "git",
