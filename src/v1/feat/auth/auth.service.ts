@@ -477,7 +477,7 @@ export default class AuthService {
     await userRepo.save(user);
   }
 
-  private static async generateTokens(
+  static async generateTokens(
     user: IUser,
     rememberMe: boolean = false
   ) {

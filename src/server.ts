@@ -84,6 +84,7 @@ export default class Server {
         registerDevice: userService.registerDevice,
         logActivity: userService.logActivity,
         checkDeviceTrust: userService.checkDeviceTrust,
+        refreshToken: userService.refreshToken,
       });
 
       console.log('gRPC services registered successfully');

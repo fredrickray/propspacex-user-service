@@ -26,6 +26,9 @@ export default class UserServiceImpl {
       id: user.id,
       firstName: user.firstName,
       lastName: user.lastName,
+      email: user.email,
+      phone: '',
+      appRole: user.appRole,
       isVerified: user.isVerified,
       isAccountActive: user.isAccountActive,
       lastLoginDate: user.lastLoginDate,
@@ -80,6 +83,7 @@ export default class UserServiceImpl {
         lastName: result.user.lastName,
         email: result.user.email,
         phone: '',
+        appRole: result.user.appRole,
         isVerified: result.user.isVerified,
         isAccountActive: result.user.isAccountActive,
         lastLoginDate: result.user.lastLoginDate,
@@ -288,5 +292,40 @@ export default class UserServiceImpl {
     const isTrusted = await DeviceService.isDeviceTrusted(userId, deviceId);
 
     callback(null, { isTrusted });
+  });
+
+  /**
+   * Refresh access token - called by API Gateway
+   */
+  refreshToken = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { refreshToken } = call.request;
+
+    if (!refreshToken) {
+      throw new BadRequest('Refresh token is required');
+    }
+
+    // Verify the refresh token
+    const decoded = await AuthService.verifyJWT(
+      refreshToken,
+      TokenType.REFRESH
+    );
+    const userId = decoded.sub as string;
+
+    // Get user from database
+    const user = await UserService.getUserById(userId);
+
+    if (!user.isAccountActive) {
+      throw new BadRequest('Account is deactivated');
+    }
+
+    // Generate new token pair
+    const tokens = await AuthService.generateTokens(user);
+
+    callback(null, {
+      success: true,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      error: '',
+    });
   });
 }
