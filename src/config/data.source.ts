@@ -1,10 +1,10 @@
-import DotenvConfig from './dotenv.config';
-import { DataSource } from 'typeorm';
-import { User } from '@user/user.entity';
-import { Device } from '@security/device.entity';
+import { LoginAttempt, Token } from '@auth/auth.entity';
+import * as migrations from '../migrations';
 import { ActivityLog } from '@security/activity.entity';
-import { Token, LoginAttempt } from '@auth/auth.entity';
-import { connect } from 'http2';
+import { Device } from '@security/device.entity';
+import { User } from '@user/user.entity';
+import { DataSource } from 'typeorm';
+import DotenvConfig from './dotenv.config';
 
 export const AppDataSource = new DataSource({
   type: DotenvConfig.Database.type as any,
@@ -16,7 +16,7 @@ export const AppDataSource = new DataSource({
   synchronize: DotenvConfig.Database.synchronize,
   logging: DotenvConfig.Database.logging,
   entities: [User, Device, ActivityLog, Token, LoginAttempt],
-  migrations: DotenvConfig.Database.migrations,
+  migrations: Object.values(migrations),
   subscribers: DotenvConfig.Database.subscribers,
   extra: {
     max: 20, // maximum number of connections in the pool

@@ -143,7 +143,17 @@ export class MailServiceClient {
     private address: string,
     protoPath?: string
   ) {
-    const PROTO_PATH = protoPath || path.join(__dirname, '..', '..', '..', 'proto', 'mail', 'v1', 'mail.proto');
+    const PROTO_PATH =
+      protoPath ||
+      path.join(
+        __dirname,
+        // This is done as in dev there is the src folder and in build there is the dist folder and the proto is inside dist as opposed to being siblings of the src folder.
+        ...(__dirname.includes('src') ? ['..', '..', '..'] : ['..', '..']),
+        'proto',
+        'mail',
+        'v1',
+        'mail.proto'
+      );
     const packageDefinition = protoLoader.loadSync(
       PROTO_PATH,
       protoLoaderOptions

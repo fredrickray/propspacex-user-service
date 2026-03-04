@@ -15,12 +15,14 @@ const DotenvConfig = {
     database: process.env.DB_NAME as string,
     synchronize: process.env.DB_SYNCHRONIZE === 'true',
     logging: process.env.DB_LOGGING === 'true',
-    entities: process.env.DB_ENTITIES
-      ? process.env.DB_ENTITIES.split(',')
-      : ['src/**/*.entity.ts'],
-    migrations: process.env.DB_MIGRATIONS
-      ? process.env.DB_MIGRATIONS.split(',')
-      : ['src/migrations/*.ts'],
+    // THIS IS BEING ADDED DIRECTLY IN THE APPDATA SOURCE.
+    // SO NO NEED TO PUT IT HERE
+    // entities: process.env.DB_ENTITIES
+    //   ? process.env.DB_ENTITIES.split(',')
+    //   : ['src/**/*.entity.*'],
+    // migrations: process.env.DB_MIGRATIONS
+    //   ? process.env.DB_MIGRATIONS.split(',')
+    //   : ['src/migrations/**/*'],
     subscribers: process.env.DB_SUBSCRIBERS
       ? process.env.DB_SUBSCRIBERS.split(',')
       : [],
