@@ -8,7 +8,7 @@ const PROTO_PATH = path.join(__dirname, '..', '..', 'proto', 'user', 'v1', 'user
 console.log('📂 Loading proto from:', PROTO_PATH);
 
 // Load the proto file
-const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+export const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
   longs: String,
   enums: String,

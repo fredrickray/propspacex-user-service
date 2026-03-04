@@ -1,6 +1,5 @@
-import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
-import * as grpc from '@grpc/grpc-js';
+import jwt from 'jsonwebtoken';
 dotenv.config();
 
 const DotenvConfig = {
@@ -16,7 +15,9 @@ const DotenvConfig = {
     database: process.env.DB_NAME as string,
     synchronize: process.env.DB_SYNCHRONIZE === 'true',
     logging: process.env.DB_LOGGING === 'true',
-    entities: process.env.DB_ENTITIES ? process.env.DB_ENTITIES.split(',') : [],
+    entities: process.env.DB_ENTITIES
+      ? process.env.DB_ENTITIES.split(',')
+      : ['src/**/*.entity.ts'],
     migrations: process.env.DB_MIGRATIONS
       ? process.env.DB_MIGRATIONS.split(',')
       : ['src/migrations/*.ts'],

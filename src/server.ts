@@ -1,12 +1,13 @@
 import express, { Application } from 'express';
 import bodyParser from 'body-parser';
 import * as grpc from '@grpc/grpc-js';
+import { ReflectionService } from '@grpc/reflection';
 import { AppDataSource } from '@config/data.source';
 import indexRouter from './v1/route';
 import DotenvConfig from '@config/dotenv.config';
 import { errorHandler, routeNotFound } from '@middlewares/error.middleware';
 import UserServiceImpl from '@grpc/server/user.server';
-import { Protos } from './grpc';
+import { Protos, packageDefinition } from './grpc';
 
 export default class Server {
   public app: Application;
@@ -86,6 +87,9 @@ export default class Server {
         checkDeviceTrust: userService.checkDeviceTrust,
         refreshToken: userService.refreshToken,
       });
+
+      const reflectionService = new ReflectionService(packageDefinition);
+      reflectionService.addToServer(this.grpcServer);
 
       console.log('gRPC services registered successfully');
     } catch (error) {
