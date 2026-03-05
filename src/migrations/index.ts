@@ -1,1 +1,1 @@
-export { CreateTables1772577936577 } from './1772577936577-CreateTables';
+export { AddProfileImage1772738867632 } from './1772738867632-AddProfileImage';

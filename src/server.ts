@@ -70,22 +70,22 @@ export default class Server {
       // Add user service to gRPC server
       this.grpcServer.addService(Protos.user.UserService.service, {
         // User methods
-        getUser: userService.getUser,
-        getUserEmail: userService.getUserEmail,
-        // listUsers: userService.listUsers,
+        GetUser: userService.getUser,
+        GetUserEmail: userService.getUserEmail,
+        // ListUsers: userService.listUsers,
 
         // Auth methods
-        signin: userService.signin,
-        signup: userService.signup,
-        verifyOTP: userService.verifyOTP,
-        resendOTP: userService.resendOTP,
+        Signin: userService.signin,
+        Signup: userService.signup,
+        VerifyOTP: userService.verifyOTP,
+        ResendOTP: userService.resendOTP,
 
         // Security & Device Management methods (for API Gateway)
-        validateToken: userService.validateToken,
-        registerDevice: userService.registerDevice,
-        logActivity: userService.logActivity,
-        checkDeviceTrust: userService.checkDeviceTrust,
-        refreshToken: userService.refreshToken,
+        ValidateToken: userService.validateToken,
+        RegisterDevice: userService.registerDevice,
+        LogActivity: userService.logActivity,
+        CheckDeviceTrust: userService.checkDeviceTrust,
+        RefreshToken: userService.refreshToken,
       });
 
       const reflectionService = new ReflectionService(packageDefinition);
