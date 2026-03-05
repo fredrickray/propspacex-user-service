@@ -35,6 +35,10 @@ export const userPasswordSchema = Joi.string()
 
 export const signupValidationSchema = Joi.object({
   email: safeString.label('Email').email().required().lowercase(),
+  firstName: safeString.label('First Name').required(),
+  lastName: safeString.label('Last Name').required(),
+  password: userPasswordSchema.required(),
+  appRole: Joi.string().required(),
 });
 
 export const verifyOTPValidationSchema = Joi.object({
