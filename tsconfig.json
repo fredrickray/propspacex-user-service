@@ -24,7 +24,8 @@
       "@security/*": ["src/v1/feat/security/*"],
       "@validations/*": ["src/validations/*"],
       "@grpc/*": ["src/grpc/*"],
-      "@migrations/*": ["src/migrations/*"]
+      "@migrations/*": ["src/migrations/*"],
+      "@web3/*": ["src/v1/feat/web3/*"]
     }
   },
   "exclude": ["node_modules"]

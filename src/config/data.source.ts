@@ -3,6 +3,7 @@ import * as migrations from '../migrations';
 import { ActivityLog } from '@security/activity.entity';
 import { Device } from '@security/device.entity';
 import { User } from '@user/user.entity';
+import { Wallet, WalletNonce } from '@web3/web3.entity';
 import { DataSource } from 'typeorm';
 import DotenvConfig from './dotenv.config';
 
@@ -15,7 +16,7 @@ export const AppDataSource = new DataSource({
   database: DotenvConfig.Database.database,
   synchronize: DotenvConfig.Database.synchronize,
   logging: DotenvConfig.Database.logging,
-  entities: [User, Device, ActivityLog, Token, LoginAttempt],
+  entities: [User, Device, ActivityLog, Token, LoginAttempt, Wallet, WalletNonce],
   migrations: Object.values(migrations),
   subscribers: DotenvConfig.Database.subscribers,
   extra: {

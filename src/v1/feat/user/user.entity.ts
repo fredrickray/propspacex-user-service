@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
-import { AppRoles } from './user.type';
+import { AppRoles, AuthMethod } from './user.type';
 // import { AppDataSource } from '@config/data.source';
 
 @Entity('User')
@@ -18,7 +18,7 @@ export class User {
   @Column({ type: 'varchar', unique: true })
   email!: string;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: 'varchar', nullable: true })
   password!: string;
 
   @Column({ type: 'jsonb', nullable: true })
@@ -29,6 +29,9 @@ export class User {
 
   @Column({ type: 'enum', enum: AppRoles, default: AppRoles.BUYER })
   appRole!: AppRoles;
+
+  @Column({ type: 'enum', enum: AuthMethod, default: AuthMethod.EMAIL })
+  authMethod!: AuthMethod;
 
   @Column({ type: 'boolean', default: false })
   isVerified!: boolean;

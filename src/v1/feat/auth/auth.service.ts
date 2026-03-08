@@ -10,7 +10,7 @@ import {
 } from '@middlewares/error.middleware';
 // import { userRepo } from '@user/user.entity';
 import { ISignin, ISignup, TokenPayload, TokenType } from './auth.type';
-import { IUser } from '@user/user.type';
+import { IUser, AuthMethod } from '@user/user.type';
 // import { loginAttemptRepo, tokenRepo } from './auth.entity';
 import { generateRandomHexString } from '@utils/crypto.utils';
 import { generateOTP, verifyOTP } from '@utils/otp.utils';
@@ -123,9 +123,16 @@ export default class AuthService {
 
     this.checkLoginCooldown(user, ipAddress);
 
+    // Reject wallet-only users from email/password signin
+    if (user.authMethod === AuthMethod.WALLET) {
+      throw new BadRequest(
+        'This account uses wallet authentication. Please sign in with your wallet.'
+      );
+    }
+
     const isPasswordValid = await bcrypt.compare(
       payload.password,
-      user.password
+      user.password!
     );
     if (!isPasswordValid) {
       await this.handleInvalidPassword(
