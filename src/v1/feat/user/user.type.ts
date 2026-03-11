@@ -11,12 +11,18 @@ export enum UserStatus {
   PENDING = 'pending',
 }
 
+export enum AuthMethod {
+  EMAIL = 'email',
+  WALLET = 'wallet',
+  BOTH = 'both',
+}
+
 export interface IUser {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
-  password: string;
+  password?: string;
   profileImage?: {
     url: string;
     mediaId: string;
@@ -30,5 +36,6 @@ export interface IUser {
   loginAttempts: number;
   allowedLoginAttempts: number;
   loginCooldown: Date;
+  authMethod: AuthMethod;
   createdAt: Date;
 }
