@@ -1,7 +1,9 @@
 import Joi from 'joi';
+import { AppRoles } from '@user/user.type';
 
 const ethereumAddressPattern = /^0x[a-fA-F0-9]{40}$/;
 const hexSignaturePattern = /^0x[a-fA-F0-9]+$/;
+
 
 export const requestNonceValidationSchema = Joi.object({
   walletAddress: Joi.string()
@@ -10,6 +12,12 @@ export const requestNonceValidationSchema = Joi.object({
     .messages({
       'string.pattern.base': 'Invalid Ethereum wallet address',
       'any.required': 'Wallet address is required',
+    }),
+  appRole: Joi.string()
+    .valid(...Object.values(AppRoles))
+    .optional()
+    .messages({
+      'any.only': 'Invalid appRole provided',
     }),
 });
 

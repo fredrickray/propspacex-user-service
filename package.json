@@ -12,7 +12,7 @@
     "prestart": "npm run build",
     "start": "node -r tsconfig-paths/register dist/index.js",
     "predev": "npm run migration:check:run",
-    "dev": "tsx watch src/index.ts",
+    "dev": "nodemon --watch src --ext ts,json,proto --exec tsx src/index.ts",
     "proto:add": "git submodule add https://github.com/fredrickray/propspacex-proto-definitions proto",
     "proto:update": "git submodule update --remote proto",
     "lint": "eslint './src/**/*.{ts,tsx}'",
@@ -51,7 +51,7 @@
     "joi": "^18.0.0",
     "jsonwebtoken": "^9.0.2",
     "juice": "^11.0.1",
-    "nodemon": "^3.1.10",
+    "nodemon": "^3.1.14",
     "pg": "^8.16.3",
     "typeorm": "^0.3.25"
   },
