@@ -31,9 +31,9 @@ export default class Web3Service {
    * Generate a nonce for wallet authentication.
    * If no user/wallet exists, creates one on the fly.
    */
-  static async requestNonce(walletAddress: string) {
+  static async requestNonce(walletAddress: string, appRole?: string) {
     // Validate input
-    const { error } = requestNonceValidationSchema.validate({ walletAddress });
+    const { error } = requestNonceValidationSchema.validate({ walletAddress, appRole });
     if (error) {
       throw new InvalidInput(
         error.details.map((d) => d.message).join(', ')
@@ -56,7 +56,7 @@ export default class Web3Service {
         email: `${normalizedAddress.toLowerCase()}@wallet.local`,
         authMethod: AuthMethod.WALLET,
         isVerified: true, // Wallet users are verified by default
-        appRole: AppRoles.BUYER,
+        appRole: (appRole as AppRoles) || AppRoles.BUYER,
       });
       await userRepo.save(newUser);
 
@@ -248,6 +248,50 @@ export default class Web3Service {
 
     return wallet;
   }
+
+  /**
+   * Unlink a wallet from an existing user account.
+   */
+  static async unlinkWallet(userId: string, walletAddress: string) {
+    const normalizedAddress = ethers.getAddress(walletAddress);
+
+    // Find the wallet
+    const wallet = await walletRepo.findOneBy({
+      userId,
+      walletAddress: normalizedAddress,
+    });
+
+    if (!wallet) {
+      throw new ResourceNotFound('Wallet not found or not linked to your account');
+    }
+
+    // Check user authMethod to prevent lockout
+    const user = await userRepo.findOneBy({ id: userId });
+    if (!user) {
+      throw new ResourceNotFound('User not found');
+    }
+
+    const userWallets = await walletRepo.findBy({ userId });
+
+    // Prevent unlink if no password and this is the only wallet
+    if (user.authMethod === AuthMethod.WALLET && userWallets.length === 1 && !user.password) {
+      throw new BadRequest(
+        'Cannot unlink your only authentication method. Add a password or link another wallet first.'
+      );
+    }
+
+    // Delete wallet linking record
+    await walletRepo.remove(wallet);
+
+    // Downgrade authMethod if they only had one wallet and are now email-only
+    if (user.authMethod === AuthMethod.BOTH && userWallets.length === 1) {
+      user.authMethod = AuthMethod.EMAIL;
+      await userRepo.save(user);
+    }
+
+    return true;
+  }
+
 
   /**
    * Build a human-readable sign message (SIWE-style).

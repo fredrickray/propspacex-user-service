@@ -9,9 +9,9 @@ export default class Web3Controller {
    */
   static async requestNonce(req: Request, res: Response, next: NextFunction) {
     try {
-      const { walletAddress } = req.body;
+      const { walletAddress, appRole } = req.body;
 
-      const { nonce, message } = await Web3Service.requestNonce(walletAddress);
+      const { nonce, message } = await Web3Service.requestNonce(walletAddress, appRole);
 
       res.status(200).json({
         success: true,
@@ -105,6 +105,33 @@ export default class Web3Controller {
           walletAddress: wallet.walletAddress,
           isPrimary: wallet.isPrimary,
         },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * DELETE /v1/api/web3/link
+   * Unlink a wallet from an existing authenticated user.
+   */
+  static async unlinkWallet(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { walletAddress } = req.body;
+      const userId = (req as any).user?.sub;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required to unlink a wallet',
+        });
+      }
+
+      await Web3Service.unlinkWallet(userId, walletAddress);
+
+      res.status(200).json({
+        success: true,
+        message: 'Wallet unlinked successfully',
       });
     } catch (error) {
       next(error);

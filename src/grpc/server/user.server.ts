@@ -2,6 +2,7 @@ import * as grpc from '@grpc/grpc-js';
 import DotenvConfig from '@config/dotenv.config';
 import UserService from '@user/user.service';
 import AuthService from '@auth/auth.service';
+import Web3Service from '@web3/web3.service';
 import DeviceService from '@security/device.service';
 import ActivityService from '@security/activity.service';
 import { Event } from '@security/activity.type';
@@ -161,6 +162,117 @@ export default class UserServiceImpl {
       error: '',
     });
   });
+
+
+  // ==================== Web3 Authentication ====================
+
+  /**
+   * Generate a nonce for wallet authentication
+   */
+  requestWeb3Nonce = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { walletAddress, appRole } = call.request;
+
+    if (!walletAddress) {
+      throw new BadRequest('Wallet address is required');
+    }
+
+    const { nonce, message } = await Web3Service.requestNonce(walletAddress, appRole);
+
+    callback(null, {
+      success: true,
+      nonce,
+      message,
+      error: '',
+    });
+  });
+
+  /**
+   * Verify wallet signature and authenticate
+   */
+  verifyWeb3Signature = withGrpcErrorHandler(
+    async (call: any, callback: any) => {
+      const { walletAddress, signature, message } = call.request;
+
+      if (!walletAddress || !signature || !message) {
+        throw new BadRequest(
+          'Wallet address, signature, and message are required'
+        );
+      }
+
+      const peer = call.getPeer() || '';
+      const ipAddress = peer.split(':')[0] || 'unknown';
+
+      const result = await Web3Service.verifySignature(
+        walletAddress,
+        signature,
+        message,
+        ipAddress
+      );
+
+      callback(null, {
+        success: true,
+        user: {
+          userId: result.user.id,
+          firstName: result.user.firstName,
+          lastName: result.user.lastName,
+          email: result.user.email,
+          phone: '',
+          appRole: result.user.appRole,
+          isVerified: result.user.isVerified,
+          isAccountActive: result.user.isAccountActive,
+          lastLoginDate: result.user.lastLoginDate,
+          loginAttempts: result.user.loginAttempts,
+          allowedLoginAttempts: result.user.allowedLoginAttempts,
+          loginCooldown: result.user.loginCooldown,
+          createdAt: result.user.createdAt?.toISOString(),
+          updatedAt: result.user.updatedAt?.toISOString(),
+        },
+        error: '',
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      });
+    }
+  );
+
+  /**
+   * Link a wallet to an existing user account
+   */
+  linkWeb3Wallet = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { userId, walletAddress } = call.request;
+
+    if (!userId || !walletAddress) {
+      throw new BadRequest('User ID and wallet address are required');
+    }
+
+    const wallet = await Web3Service.linkWallet(userId, walletAddress);
+
+    callback(null, {
+      success: true,
+      walletAddress: wallet.walletAddress,
+      isPrimary: wallet.isPrimary,
+      error: '',
+    });
+  });
+
+  /**
+   * Unlink a wallet from an existing user account
+   */
+  unlinkWeb3Wallet = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { userId, walletAddress } = call.request;
+
+    if (!userId || !walletAddress) {
+      throw new BadRequest('User ID and wallet address are required');
+    }
+
+    await Web3Service.unlinkWallet(userId, walletAddress);
+
+    callback(null, {
+      success: true,
+      message: 'Wallet unlinked successfully',
+      error: '',
+    });
+  });
+
 
   // ==================== Security & Device Management ====================
 
