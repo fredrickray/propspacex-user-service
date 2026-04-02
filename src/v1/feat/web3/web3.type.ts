@@ -1,5 +1,6 @@
 export interface IRequestNonce {
   walletAddress: string;
+  appRole?: string;
 }
 
 export interface IVerifySignature {

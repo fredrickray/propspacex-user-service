@@ -86,6 +86,12 @@ export default class Server {
         LogActivity: userService.logActivity,
         CheckDeviceTrust: userService.checkDeviceTrust,
         RefreshToken: userService.refreshToken,
+
+        // Web3 Authentication methods
+        RequestWeb3Nonce: userService.requestWeb3Nonce,
+        VerifyWeb3Signature: userService.verifyWeb3Signature,
+        LinkWeb3Wallet: userService.linkWeb3Wallet,
+        UnlinkWeb3Wallet: userService.unlinkWeb3Wallet,
       });
 
       const reflectionService = new ReflectionService(packageDefinition);
