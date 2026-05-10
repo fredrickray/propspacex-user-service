@@ -17,6 +17,8 @@ import { generateOTP, verifyOTP } from '@utils/otp.utils';
 import { AppDataSource } from '@config/data.source';
 import { User } from '@user/user.entity';
 import { LoginAttempt, Token } from './auth.entity';
+import { Device } from '@security/device.entity';
+import { ActivityLog } from '@security/activity.entity';
 import {
   signinValidationSchema,
   signupValidationSchema,
@@ -28,11 +30,13 @@ import DeviceService from '@security/device.service';
 import ActivityService from '@security/activity.service';
 import { Event } from '@security/activity.type';
 import { MailServiceClient, getMailClient } from '@grpc/client/mail.client';
+import { getPaymentClient, CurrencyCode } from '@grpc/client/payment.client';
 
 const userRepo = AppDataSource.getRepository(User);
 const loginAttemptRepo = AppDataSource.getRepository(LoginAttempt);
 const tokenRepo = AppDataSource.getRepository(Token);
 const mailClient = getMailClient();
+const paymentClient = getPaymentClient();
 
 export default class AuthService {
   private static JWT_OPTIONS: SignOptions = {
@@ -66,18 +70,42 @@ export default class AuthService {
       appRole: payload.appRole,
     });
 
-    await userRepo.save(newUser);
-
-    await tokenRepo.save(
-      tokenRepo.create({
-        userId: newUser.id,
-        token: await bcrypt.hash(otp, DotenvConfig.BcryptSalt),
-        tokenType: TokenType.EMAIL_VERIFICATION,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
-      })
+    const verificationTokenHash = await bcrypt.hash(
+      otp,
+      DotenvConfig.BcryptSalt
     );
 
-    // Fire-and-forget: non-critical operations
+    await AppDataSource.transaction(async (manager) => {
+      await manager.save(newUser);
+      await manager.save(
+        manager.create(Token, {
+          userId: newUser.id,
+          token: verificationTokenHash,
+          tokenType: TokenType.EMAIL_VERIFICATION,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+        })
+      );
+    });
+
+    try {
+      await mailClient.sendVerificationEmail({
+        recipientEmail: newUser.email,
+        verificationCode: otp,
+      });
+    } catch (err) {
+      try {
+        await AppDataSource.transaction(async (manager) => {
+          await manager.delete(Token, { userId: newUser.id });
+          await manager.delete(Device, { userId: newUser.id });
+          await manager.delete(ActivityLog, { userId: newUser.id });
+          await manager.delete(User, { id: newUser.id });
+        });
+      } catch (rollbackErr) {
+        console.error('Signup rollback failed:', rollbackErr);
+      }
+      throw err;
+    }
+
     ActivityService.log(Event.USER_REGISTERED, {
       userId: newUser.id,
       ip: ipAddress,
@@ -87,17 +115,12 @@ export default class AuthService {
         email: newUser.email,
         appRole: newUser.appRole,
       },
-    }).catch((err) => console.error('Activity log error:', err));
+    }).catch((e) => console.error('Activity log error:', e));
 
     DeviceService.registerOrUpdate(newUser.id, ipAddress, userAgent, {
       isTrusted: false,
-    }).catch((err) => console.error('Device registration error:', err));
+    }).catch((e) => console.error('Device registration error:', e));
 
-    // Send verification email (still awaited - critical for user flow)
-    await mailClient.sendVerificationEmail({
-      recipientEmail: newUser.email,
-      verificationCode: otp,
-    });
     return newUser;
   }
 
@@ -221,6 +244,13 @@ export default class AuthService {
       location,
       metadata: { email: user.email },
     }).catch((err) => console.error('Activity log error:', err));
+
+    paymentClient.createWallet(user.id, CurrencyCode.NGN).catch((err) =>
+      console.error(
+        'Wallet creation error:',
+        err?.details ?? err?.message ?? err
+      )
+    );
 
     await mailClient.sendWelcomeEmail({
       recipientEmail: user.email,

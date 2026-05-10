@@ -49,6 +49,23 @@ export function grpcErrorHandler(error: any): {
         };
     }
 
+    // Propagate @grpc/grpc-js errors (e.g. outbound calls to mail/payment services)
+    const maybeGrpcCode = error?.code;
+    if (
+        typeof maybeGrpcCode === 'number' &&
+        Number.isInteger(maybeGrpcCode) &&
+        maybeGrpcCode >= grpc.status.CANCELLED &&
+        maybeGrpcCode <= grpc.status.UNAUTHENTICATED
+    ) {
+        return {
+            code: maybeGrpcCode,
+            message:
+                (typeof error.details === 'string' && error.details) ||
+                error.message ||
+                'Upstream request failed',
+        };
+    }
+
     return {
         code: grpc.status.INTERNAL,
         message: 'Internal server error',

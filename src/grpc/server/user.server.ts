@@ -1,5 +1,3 @@
-import * as grpc from '@grpc/grpc-js';
-import DotenvConfig from '@config/dotenv.config';
 import UserService from '@user/user.service';
 import AuthService from '@auth/auth.service';
 import Web3Service from '@web3/web3.service';
@@ -7,11 +5,13 @@ import DeviceService from '@security/device.service';
 import ActivityService from '@security/activity.service';
 import { Event } from '@security/activity.type';
 import { TokenType } from '@auth/auth.type';
+import ChatService from '@chat/chat.service';
 import { withGrpcErrorHandler } from '../grpc-error.handler';
 import {
   BadRequest,
   InvalidInput,
 } from '@middlewares/error.middleware';
+import { Conversation, Message } from '@chat/chat.entity';
 
 export default class UserServiceImpl {
   getUser = withGrpcErrorHandler(async (call: any, callback: any) => {
@@ -162,6 +162,141 @@ export default class UserServiceImpl {
       error: '',
     });
   });
+
+  createOrGetConversation = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { buyerId, agentId, propertyId } = call.request;
+
+    if (!buyerId || !agentId) {
+      throw new BadRequest('Buyer ID and agent ID are required');
+    }
+
+    const conversation = await ChatService.createOrGetConversation({
+      buyerId,
+      agentId,
+      propertyId: propertyId || undefined,
+    });
+
+    callback(null, {
+      success: true,
+      conversation: this.toConversationResponse(conversation),
+      error: '',
+    });
+  });
+
+  sendChatMessage = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { conversationId, senderId, body } = call.request;
+
+    if (!conversationId || !senderId || !body) {
+      throw new BadRequest('Conversation ID, sender ID and message body are required');
+    }
+
+    const { message } = await ChatService.sendMessage({
+      conversationId,
+      senderId,
+      body,
+    });
+
+    callback(null, {
+      success: true,
+      message: this.toMessageResponse(message),
+      error: '',
+    });
+  });
+
+  listConversations = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { userId, page, limit } = call.request;
+
+    if (!userId) {
+      throw new BadRequest('User ID is required');
+    }
+
+    const result = await ChatService.listConversations({
+      userId,
+      page: page || 1,
+      limit: limit || 20,
+    });
+
+    callback(null, {
+      conversations: result.data.map((entry) => ({
+        conversation: this.toConversationResponse(entry.conversation),
+        lastMessage: entry.lastMessage
+          ? this.toMessageResponse(entry.lastMessage)
+          : undefined,
+        unreadCount: entry.unreadCount,
+      })),
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+    });
+  });
+
+  listConversationMessages = withGrpcErrorHandler(
+    async (call: any, callback: any) => {
+      const { conversationId, userId, page, limit } = call.request;
+
+      if (!conversationId || !userId) {
+        throw new BadRequest('Conversation ID and user ID are required');
+      }
+
+      const result = await ChatService.listMessages({
+        conversationId,
+        userId,
+        page: page || 1,
+        limit: limit || 50,
+      });
+
+      callback(null, {
+        messages: result.messages.map((message) => this.toMessageResponse(message)),
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+      });
+    }
+  );
+
+  markConversationRead = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { conversationId, userId } = call.request;
+
+    if (!conversationId || !userId) {
+      throw new BadRequest('Conversation ID and user ID are required');
+    }
+
+    const updatedCount = await ChatService.markConversationAsRead({
+      conversationId,
+      userId,
+    });
+
+    callback(null, {
+      success: true,
+      updatedCount,
+    });
+  });
+
+  private toConversationResponse(conversation: Conversation) {
+    return {
+      conversationId: conversation.id,
+      buyerId: conversation.buyerId,
+      agentId: conversation.agentId,
+      propertyId: conversation.propertyId || '',
+      status: conversation.status,
+      createdAt: conversation.createdAt?.toISOString() || '',
+      updatedAt: conversation.updatedAt?.toISOString() || '',
+      lastMessageAt: conversation.lastMessageAt?.toISOString() || '',
+    };
+  }
+
+  private toMessageResponse(message: Message) {
+    return {
+      messageId: message.id,
+      conversationId: message.conversationId,
+      senderId: message.senderId,
+      recipientId: message.recipientId,
+      body: message.body,
+      messageType: message.messageType,
+      createdAt: message.createdAt?.toISOString() || '',
+      readAt: message.readAt?.toISOString() || '',
+    };
+  }
 
 
   // ==================== Web3 Authentication ====================
