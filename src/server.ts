@@ -2,21 +2,27 @@ import express, { Application } from 'express';
 import bodyParser from 'body-parser';
 import * as grpc from '@grpc/grpc-js';
 import { ReflectionService } from '@grpc/reflection';
+import { createServer, Server as HttpServer } from 'http';
 import { AppDataSource } from '@config/data.source';
 import indexRouter from './v1/route';
 import DotenvConfig from '@config/dotenv.config';
 import { errorHandler, routeNotFound } from '@middlewares/error.middleware';
 import UserServiceImpl from '@grpc/server/user.server';
 import { Protos, packageDefinition } from './grpc';
+import ChatSocketServer from './ws/chat.socket.server';
 
 export default class Server {
   public app: Application;
+  private httpServer: HttpServer;
   private grpcServer: grpc.Server;
   private grpcPort: number;
+  private chatSocketServer: ChatSocketServer;
 
   constructor() {
     this.app = express();
+    this.httpServer = createServer(this.app);
     this.grpcServer = new grpc.Server();
+    this.chatSocketServer = new ChatSocketServer(this.httpServer);
     this.grpcPort = DotenvConfig.grpcPort;
     console.log('Registering middlewares...');
     this.initializeMiddlewares();
@@ -86,6 +92,11 @@ export default class Server {
         LogActivity: userService.logActivity,
         CheckDeviceTrust: userService.checkDeviceTrust,
         RefreshToken: userService.refreshToken,
+        CreateOrGetConversation: userService.createOrGetConversation,
+        SendChatMessage: userService.sendChatMessage,
+        ListConversations: userService.listConversations,
+        ListConversationMessages: userService.listConversationMessages,
+        MarkConversationRead: userService.markConversationRead,
 
         // Web3 Authentication methods
         RequestWeb3Nonce: userService.requestWeb3Nonce,
@@ -135,6 +146,10 @@ export default class Server {
 
         // Closing database connection
         try {
+          this.chatSocketServer.close();
+          await new Promise<void>((resolve) => {
+            this.httpServer.close(() => resolve());
+          });
           await AppDataSource.destroy();
           console.log('Database connection closed');
         } catch (error) {
@@ -169,7 +184,7 @@ export default class Server {
 
   async start(port: number) {
     try {
-      this.app.listen(port, () => {
+      this.httpServer.listen(port, () => {
         console.log(`Server initialized and ready for action! 🤖`);
         console.log('     /\\_/\\');
         console.log('    / o o \\');
@@ -182,6 +197,7 @@ export default class Server {
 
         console.log('\n✅ All servers started successfully!');
         console.log(`📡 HTTP API: http://localhost:${port}`);
+        console.log(`💬 WebSocket Chat: ws://localhost:${port}/v1/ws/chat`);
         console.log(`🔌 gRPC Service: localhost:${this.grpcPort}`);
       });
     } catch (error) {

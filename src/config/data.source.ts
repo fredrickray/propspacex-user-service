@@ -1,4 +1,5 @@
 import { LoginAttempt, Token } from '@auth/auth.entity';
+import { Conversation, Message } from '@chat/chat.entity';
 import * as migrations from '../migrations';
 import { ActivityLog } from '@security/activity.entity';
 import { Device } from '@security/device.entity';
@@ -16,7 +17,17 @@ export const AppDataSource = new DataSource({
   database: DotenvConfig.Database.database,
   synchronize: DotenvConfig.Database.synchronize,
   logging: DotenvConfig.Database.logging,
-  entities: [User, Device, ActivityLog, Token, LoginAttempt, Wallet, WalletNonce],
+  entities: [
+    User,
+    Device,
+    ActivityLog,
+    Token,
+    LoginAttempt,
+    Wallet,
+    WalletNonce,
+    Conversation,
+    Message,
+  ],
   migrations: Object.values(migrations),
   subscribers: DotenvConfig.Database.subscribers,
   extra: {
