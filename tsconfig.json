@@ -25,7 +25,8 @@
       "@validations/*": ["src/validations/*"],
       "@grpc/*": ["src/grpc/*"],
       "@migrations/*": ["src/migrations/*"],
-      "@web3/*": ["src/v1/feat/web3/*"]
+      "@web3/*": ["src/v1/feat/web3/*"],
+      "@chat/*": ["src/v1/feat/chat/*"]
     }
   },
   "exclude": ["node_modules"]
