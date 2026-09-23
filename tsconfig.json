@@ -26,8 +26,16 @@
       "@grpc/*": ["src/grpc/*"],
       "@migrations/*": ["src/migrations/*"],
       "@web3/*": ["src/v1/feat/web3/*"],
-      "@chat/*": ["src/v1/feat/chat/*"]
+      "@chat/*": ["src/v1/feat/chat/*"],
+      "@deal/*": ["src/v1/feat/deal/*"]
     }
   },
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules"],
+  "tsc-alias": {
+    "replacers": {
+      "base-url": {
+        "enabled": false
+      }
+    }
+  }
 }

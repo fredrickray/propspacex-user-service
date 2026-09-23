@@ -97,6 +97,11 @@ export default class Server {
         ListConversations: userService.listConversations,
         ListConversationMessages: userService.listConversationMessages,
         MarkConversationRead: userService.markConversationRead,
+        CreateOrGetDeal: userService.createOrGetDeal,
+        ListDeals: userService.listDeals,
+        GetDeal: userService.getDeal,
+        QuoteDeal: userService.quoteDeal,
+        AcceptDealQuote: userService.acceptDealQuote,
 
         // Web3 Authentication methods
         RequestWeb3Nonce: userService.requestWeb3Nonce,

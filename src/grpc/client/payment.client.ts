@@ -107,7 +107,8 @@ export enum CurrencyCode {
 
 
 export class PaymentServiceClient {
-    private client: any;
+    private walletClient: any;
+    private escrowClient: any;
     private connected: boolean = false;
 
     /**
@@ -127,19 +128,25 @@ export class PaymentServiceClient {
         );
         const paymentProto = grpc.loadPackageDefinition(packageDefinition) as any;
 
-        this.client = new paymentProto.payment.WalletService(
+        this.walletClient = new paymentProto.payment.WalletService(
+            address,
+            grpc.credentials.createInsecure()
+        );
+
+        this.escrowClient = new paymentProto.payment.EscrowService(
             address,
             grpc.credentials.createInsecure()
         );
     }
 
     private promisify<T>(
+        client: any,
         method: string,
         params: Record<string, any>
     ): Promise<T> {
         return new Promise((resolve, reject) => {
             // keepCase: false in proto-loader handles camelCase <-> snake_case conversion
-            this.client[method](params, (error: any, response: T) => {
+            client[method](params, (error: any, response: T) => {
                 if (error) {
                     reject(error);
                 } else {
@@ -150,15 +157,15 @@ export class PaymentServiceClient {
     }
 
     async createWallet(userId: string, currencyCode: CurrencyCode): Promise<CreateWalletResponse> {
-        return this.promisify<CreateWalletResponse>('CreateWallet', { userId, currencyCode });
+        return this.promisify<CreateWalletResponse>(this.walletClient, 'CreateWallet', { userId, currencyCode });
     }
 
     async getWalletByUserId(userId: string): Promise<GetWalletResponse> {
-        return this.promisify('GetWalletByUserId', { userId });
+        return this.promisify(this.walletClient, 'GetWalletByUserId', { userId });
     }
 
     async getWalletById(walletId: string): Promise<GetWalletResponse> {
-        return this.promisify('GetWalletById', { walletId });
+        return this.promisify(this.walletClient, 'GetWalletById', { walletId });
     }
 
     async creditWallet(params: {
@@ -169,7 +176,7 @@ export class PaymentServiceClient {
         note?: string;
         idempotencyKey: string;
     }): Promise<WalletMutationResponse> {
-        return this.promisify('CreditWallet', params);
+        return this.promisify(this.walletClient, 'CreditWallet', params);
     }
     async debitWallet(params: {
         userId: string;
@@ -179,7 +186,7 @@ export class PaymentServiceClient {
         note?: string;
         idempotencyKey: string;
     }): Promise<WalletMutationResponse> {
-        return this.promisify('DebitWallet', params);
+        return this.promisify(this.walletClient, 'DebitWallet', params);
     }
 
     async listWalletTransactions(params: {
@@ -188,7 +195,7 @@ export class PaymentServiceClient {
         referenceType?: string;
         referenceId?: string;
     }): Promise<ListWalletTransactionsResponse> {
-        return this.promisify('ListWalletTransactions', params);
+        return this.promisify(this.walletClient, 'ListWalletTransactions', params);
     }
     async requestWithdrawal(params: {
         userId: string;
@@ -198,20 +205,28 @@ export class PaymentServiceClient {
         accountName: string;
         idempotencyKey: string;
     }): Promise<RequestWithdrawalResponse> {
-        return this.promisify('RequestWithdrawal', params);
+        return this.promisify(this.walletClient, 'RequestWithdrawal', params);
     }
     async listWithdrawals(params: {
         userId: string;
         pagination?: { page: number; limit: number };
         status?: number;
     }): Promise<ListWithdrawalsResponse> {
-        return this.promisify('ListWithdrawals', params);
+        return this.promisify(this.walletClient, 'ListWithdrawals', params);
+    }
+
+    async createEscrow(params: Record<string, any>): Promise<any> {
+        return this.promisify(this.escrowClient, 'CreateEscrow', params);
+    }
+
+    async getEscrowById(escrowId: string): Promise<any> {
+        return this.promisify(this.escrowClient, 'GetEscrowById', { escrowId });
     }
 
     async waitForReady(timeoutMs: number = 5000): Promise<void> {
         return new Promise((resolve, reject) => {
             const deadline = Date.now() + timeoutMs;
-            this.client.waitForReady(deadline, (error: any) => {
+            this.walletClient.waitForReady(deadline, (error: any) => {
                 if (error) {
                     reject(
                         new Error(
@@ -231,8 +246,11 @@ export class PaymentServiceClient {
     }
 
     close(): void {
-        if (this.client) {
-            grpc.closeClient(this.client);
+        if (this.walletClient) {
+            grpc.closeClient(this.walletClient);
+        }
+        if (this.escrowClient) {
+            grpc.closeClient(this.escrowClient);
         }
     }
 
