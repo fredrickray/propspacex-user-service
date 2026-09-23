@@ -6,6 +6,7 @@ import { TokenType } from '@auth/auth.type';
 import UserService from '@user/user.service';
 import ChatService from '@chat/chat.service';
 import { Conversation, Message } from '@chat/chat.entity';
+import DealService from '@deal/deal.service';
 import { HttpError } from '@middlewares/error.middleware';
 
 type AuthenticatedSocket = WebSocket & { userId?: string };
@@ -301,6 +302,59 @@ export default class ChatSocketServer {
         return;
       }
 
+      case 'deal.create_or_get': {
+        const deal = await DealService.createOrGetByConversation({
+          conversationId: String(payload.data?.conversationId || ''),
+          userId,
+          propertyTitle: payload.data?.propertyTitle
+            ? String(payload.data.propertyTitle)
+            : undefined,
+        });
+        this.send(socket, {
+          event: 'deal.ready',
+          requestId,
+          success: true,
+          data: { deal },
+        });
+        return;
+      }
+
+      case 'deal.quote': {
+        const deal = await DealService.quoteDeal({
+          dealId: String(payload.data?.dealId || ''),
+          agentId: userId,
+          amountMinor: Number(payload.data?.amountMinor || 0),
+          platformFeeMinor: Number(payload.data?.platformFeeMinor || 0),
+          quoteNote: payload.data?.quoteNote ? String(payload.data.quoteNote) : undefined,
+        });
+
+        this.send(socket, {
+          event: 'deal.quoted',
+          requestId,
+          success: true,
+          data: { deal },
+        });
+        this.broadcastDealStatusChanged(deal);
+        return;
+      }
+
+      case 'deal.accept_quote': {
+        const deal = await DealService.acceptQuote({
+          dealId: String(payload.data?.dealId || ''),
+          buyerId: userId,
+          idempotencyKey: String(payload.data?.idempotencyKey || requestId || ''),
+        });
+
+        this.send(socket, {
+          event: 'deal.quote_accepted',
+          requestId,
+          success: true,
+          data: { deal },
+        });
+        this.broadcastDealStatusChanged(deal);
+        return;
+      }
+
       default:
         this.sendError(socket, 'UNKNOWN_EVENT', 'Unsupported chat event', requestId);
     }
@@ -363,6 +417,20 @@ export default class ChatSocketServer {
       success: false,
       error: { code, message },
     });
+  }
+
+  private broadcastDealStatusChanged(deal: {
+    buyerId: string;
+    agentId: string;
+    [key: string]: unknown;
+  }) {
+    const payload = {
+      event: 'deal.status_changed',
+      success: true,
+      data: { deal },
+    };
+    this.broadcastToUser(deal.buyerId, payload);
+    this.broadcastToUser(deal.agentId, payload);
   }
 
   private getConversationName(

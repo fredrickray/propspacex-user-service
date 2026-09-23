@@ -1,5 +1,6 @@
 import { LoginAttempt, Token } from '@auth/auth.entity';
 import { Conversation, Message } from '@chat/chat.entity';
+import { Deal } from '@deal/deal.entity';
 import * as migrations from '../migrations';
 import { ActivityLog } from '@security/activity.entity';
 import { Device } from '@security/device.entity';
@@ -27,6 +28,7 @@ export const AppDataSource = new DataSource({
     WalletNonce,
     Conversation,
     Message,
+    Deal,
   ],
   migrations: Object.values(migrations),
   subscribers: DotenvConfig.Database.subscribers,
