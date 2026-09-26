@@ -15,6 +15,8 @@ const DotenvConfig = {
     database: process.env.DB_NAME as string,
     synchronize: process.env.DB_SYNCHRONIZE === 'true',
     logging: process.env.DB_LOGGING === 'true',
+    ssl:
+      process.env.DB_SSL === 'true' || process.env.PGSSLMODE === 'require',
     // THIS IS BEING ADDED DIRECTLY IN THE APPDATA SOURCE.
     // SO NO NEED TO PUT IT HERE
     // entities: process.env.DB_ENTITIES

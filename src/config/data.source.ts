@@ -18,6 +18,9 @@ export const AppDataSource = new DataSource({
   database: DotenvConfig.Database.database,
   synchronize: DotenvConfig.Database.synchronize,
   logging: DotenvConfig.Database.logging,
+  ssl: DotenvConfig.Database.ssl
+    ? { rejectUnauthorized: false }
+    : false,
   entities: [
     User,
     Device,
