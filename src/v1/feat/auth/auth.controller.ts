@@ -119,11 +119,24 @@ export default class AuthController {
 
       await AuthService.forgotPassword(email);
 
-      // Response is sent before the email is sent to avoid timing attacks
       res.status(200).json({
         success: true,
         message:
           'If that email address is in our database, we will send you an email to reset your password.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token, password } = req.body;
+      await AuthService.resetPassword(token, password);
+
+      res.status(200).json({
+        success: true,
+        message: 'Password reset successfully',
       });
     } catch (error) {
       next(error);

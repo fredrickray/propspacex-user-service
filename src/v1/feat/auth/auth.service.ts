@@ -12,7 +12,7 @@ import {
 import { ISignin, ISignup, TokenPayload, TokenType } from './auth.type';
 import { IUser, AuthMethod } from '@user/user.type';
 // import { loginAttemptRepo, tokenRepo } from './auth.entity';
-import { generateRandomHexString } from '@utils/crypto.utils';
+import { generateRandomHexString, hashValue } from '@utils/crypto.utils';
 import { generateOTP, verifyOTP } from '@utils/otp.utils';
 import { AppDataSource } from '@config/data.source';
 import { User } from '@user/user.entity';
@@ -23,6 +23,7 @@ import {
   signinValidationSchema,
   signupValidationSchema,
   forgotPasswordValidationSchema,
+  resetPasswordValidationSchema,
   verifyOTPValidationSchema,
   resendOTPValidationSchema,
 } from '@validations/auth.validations';
@@ -317,33 +318,57 @@ export default class AuthService {
     userAgent?: string,
     location?: string
   ) {
-    const { error } = forgotPasswordValidationSchema.validate({ email });
+    const normalizedEmail = email?.trim().toLowerCase();
+    const { error } = forgotPasswordValidationSchema.validate({
+      email: normalizedEmail,
+    });
     if (error) {
       const errorMessages = error.details.map((detail) => detail.message);
       throw new InvalidInput(errorMessages.join(', '));
     }
 
-    const existingUser = await userRepo.findOneBy({ email });
-    if (!existingUser) throw new ResourceNotFound('User not found');
+    const existingUser = await userRepo.findOneBy({ email: normalizedEmail });
+    const canReset =
+      existingUser &&
+      existingUser.authMethod !== AuthMethod.WALLET &&
+      Boolean(existingUser.password);
+
+    if (!existingUser || !canReset) {
+      return;
+    }
 
     await tokenRepo.delete({
       userId: existingUser.id,
       tokenType: TokenType.RESET_PASSWORD,
     });
 
-    const otp = generateOTP();
-    const hashedOTP = await bcrypt.hash(otp, DotenvConfig.BcryptSalt);
-
-    const token = await tokenRepo.save(
+    const rawToken = generateRandomHexString(32);
+    await tokenRepo.save(
       tokenRepo.create({
         userId: existingUser.id,
-        token: hashedOTP,
+        token: hashValue(rawToken),
         tokenType: TokenType.RESET_PASSWORD,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
       })
     );
 
-    // Fire-and-forget: activity logging
+    const frontendBase = (DotenvConfig.frontendBaseURL || '').replace(/\/$/, '');
+    const resetLink = `${frontendBase}/auth/reset-password?token=${rawToken}`;
+
+    try {
+      await mailClient.sendPasswordResetEmail({
+        recipientEmail: existingUser.email,
+        firstName: existingUser.firstName,
+        resetLink,
+      });
+    } catch (err) {
+      await tokenRepo.delete({
+        userId: existingUser.id,
+        tokenType: TokenType.RESET_PASSWORD,
+      });
+      throw err;
+    }
+
     ActivityService.log(Event.PASSWORD_RESET_REQUESTED, {
       userId: existingUser.id,
       ip: ipAddress,
@@ -351,36 +376,49 @@ export default class AuthService {
       location,
       metadata: { email: existingUser.email },
     }).catch((err) => console.error('Activity log error:', err));
-
-    await mailClient.sendPasswordResetEmail({
-      recipientEmail: existingUser.email,
-      firstName: existingUser.firstName,
-      resetLink: `${DotenvConfig.frontendBaseURL}/resetpassword?token=${otp}&id=${token.id}`,
-    });
-
-    return token;
   }
 
   static async resetPassword(
-    userId: string,
+    token: string,
     newPassword: string,
     ipAddress?: string,
     userAgent?: string,
     location?: string
   ) {
-    const user = await userRepo.findOneBy({ id: userId });
-    if (!user) throw new ResourceNotFound('User not found');
+    const { error } = resetPasswordValidationSchema.validate({
+      token,
+      password: newPassword,
+    });
+    if (error) {
+      const errorMessages = error.details.map((detail) => detail.message);
+      throw new BadRequest(errorMessages.join(', '));
+    }
 
-    const hashedPassword = await this.hashPassword(newPassword);
-    user.password = hashedPassword;
-    await userRepo.save(user);
-
-    await tokenRepo.delete({
-      userId: user.id,
+    const stored = await tokenRepo.findOneBy({
+      token: hashValue(token.trim()),
       tokenType: TokenType.RESET_PASSWORD,
     });
 
-    // Fire-and-forget: activity logging
+    if (!stored || (stored.expiresAt && new Date() > stored.expiresAt)) {
+      if (stored) {
+        await tokenRepo.delete({ id: stored.id });
+      }
+      throw new BadRequest('Invalid or expired token');
+    }
+
+    const user = await userRepo.findOneBy({ id: stored.userId });
+    if (!user) {
+      await tokenRepo.delete({ id: stored.id });
+      throw new BadRequest('Invalid or expired token');
+    }
+
+    user.password = await this.hashPassword(newPassword);
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    user.loginAttempts = 0;
+    user.loginCooldown = null as unknown as Date;
+    await userRepo.save(user);
+    await tokenRepo.delete({ id: stored.id });
+
     ActivityService.log(Event.PASSWORD_RESET_SUCCESS, {
       userId: user.id,
       ip: ipAddress,
@@ -388,6 +426,17 @@ export default class AuthService {
       location,
       metadata: { email: user.email },
     }).catch((err) => console.error('Activity log error:', err));
+
+    mailClient
+      .sendPasswordChangedEmail({
+        recipientEmail: user.email,
+        firstName: user.firstName,
+        changedAt: new Date().toISOString(),
+        ipAddress: ipAddress || '',
+        deviceInfo: userAgent || '',
+        location: location || '',
+      })
+      .catch((err) => console.error('Password changed email error:', err));
 
     return true;
   }
