@@ -85,6 +85,8 @@ export default class Server {
         Signup: userService.signup,
         VerifyOTP: userService.verifyOTP,
         ResendOTP: userService.resendOTP,
+        ForgotPassword: userService.forgotPassword,
+        ResetPassword: userService.resetPassword,
 
         // Security & Device Management methods (for API Gateway)
         ValidateToken: userService.validateToken,

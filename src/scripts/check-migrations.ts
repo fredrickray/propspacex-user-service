@@ -55,14 +55,15 @@ async function checkMigrations() {
     } else {
       console.log('✅ Database schema is up to date. No pending migrations.\n');
     }
-  } catch (error: any) {
-    if (error.message?.includes('migrations')) {
+  } catch (error: unknown) {
+    const message = formatMigrationError(error);
+    if (message.includes('migrations')) {
       console.log(
         '📋 No migrations table found. This might be a fresh database.'
       );
       console.log('   Run migrations to set up the schema.\n');
     } else {
-      console.error('❌ Error checking migrations:', error.message);
+      console.error('❌ Error checking migrations:', message);
       process.exit(1);
     }
   } finally {
@@ -70,6 +71,18 @@ async function checkMigrations() {
       await AppDataSource.destroy();
     }
   }
+}
+
+function formatMigrationError(error: unknown): string {
+  if (error instanceof AggregateError) {
+    const nested = error.errors
+      .map((item) => (item instanceof Error ? item.message : String(item)))
+      .filter(Boolean);
+    if (nested.length > 0) return nested.join('; ');
+  }
+
+  if (error instanceof Error && error.message) return error.message;
+  return String(error);
 }
 
 checkMigrations();

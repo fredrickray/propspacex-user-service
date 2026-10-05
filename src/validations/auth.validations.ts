@@ -58,6 +58,14 @@ export const signinValidationSchema = Joi.object({
   rememberMe: Joi.boolean().required(),
 });
 
+export const resetPasswordValidationSchema = Joi.object({
+  token: safeString.label('Token').required().messages({
+    'string.empty': 'Reset token is required',
+    'any.required': 'Reset token is required',
+  }),
+  password: userPasswordSchema.required(),
+});
+
 export const forgotPasswordValidationSchema = Joi.object({
   email: safeString
     .label('Email')
