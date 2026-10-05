@@ -36,4 +36,15 @@ export default class ActivityService {
       take: limit,
     });
   }
+
+  static async listAll(page = 1, limit = 20) {
+    const safePage = page > 0 ? page : 1;
+    const safeLimit = limit > 0 ? Math.min(limit, 100) : 20;
+    const [logs, total] = await activityRepo.findAndCount({
+      order: { timestamp: 'DESC' },
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
+    });
+    return { logs, total, page: safePage, limit: safeLimit };
+  }
 }

@@ -62,4 +62,56 @@ export default class UserService {
 
     return { users, total, page: safePage, limit: safeLimit };
   }
+
+  static async listUnverifiedUsers(page = 1, limit = 20) {
+    const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+    const safeLimit =
+      Number.isFinite(limit) && limit > 0
+        ? Math.min(Math.floor(limit), 100)
+        : 20;
+    const [users, total] = await this.userRepo.findAndCount({
+      where: { isVerified: false },
+      order: { createdAt: 'DESC' },
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
+    });
+    return { users, total, page: safePage, limit: safeLimit };
+  }
+
+  static async updateProfile(input: {
+    userId: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  }): Promise<User> {
+    const user = await this.getUserById(input.userId);
+    const firstName = input.firstName?.trim() ?? '';
+    const lastName = input.lastName?.trim() ?? '';
+    const email = input.email?.trim() ?? '';
+
+    if (!firstName || !lastName || !email) {
+      throw new InvalidInput('First name, last name, and email are required');
+    }
+
+    if (email.toLowerCase() !== user.email.toLowerCase()) {
+      const existing = await this.userRepo
+        .createQueryBuilder('user')
+        .where('LOWER(user.email) = LOWER(:email)', { email })
+        .getOne();
+      if (existing && existing.id !== user.id) {
+        throw new BadRequest('Email is already in use');
+      }
+      user.email = email;
+    }
+
+    user.firstName = firstName;
+    user.lastName = lastName;
+    user.updatedAt = new Date();
+    return this.userRepo.save(user);
+  }
+
+  static async deleteUser(userId: string): Promise<void> {
+    const user = await this.getUserById(userId);
+    await this.userRepo.remove(user);
+  }
 }

@@ -79,6 +79,9 @@ export default class Server {
         GetUser: userService.getUser,
         GetUserEmail: userService.getUserEmail,
         ListUsers: userService.listUsers,
+        UpdateUser: userService.updateUser,
+        DeleteUser: userService.deleteUser,
+        ListVerifications: userService.listVerifications,
 
         // Auth methods
         Signin: userService.signin,
