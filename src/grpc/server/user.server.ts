@@ -61,6 +61,35 @@ export default class UserServiceImpl {
     });
   });
 
+  listUsers = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const page = Number(call.request.page) || 1;
+    const limit = Number(call.request.limit) || 10;
+    const search = call.request.search || '';
+    const result = await UserService.listUsers(page, limit, search);
+
+    callback(null, {
+      users: result.users.map((user) => ({
+        userId: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: '',
+        appRole: user.appRole,
+        isVerified: user.isVerified,
+        isAccountActive: user.isAccountActive,
+        createdAt: user.createdAt
+          ? new Date(user.createdAt).toISOString()
+          : '',
+        updatedAt: user.updatedAt
+          ? new Date(user.updatedAt).toISOString()
+          : '',
+      })),
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+    });
+  });
+
   signin = withGrpcErrorHandler(async (call: any, callback: any) => {
     const { email, password } = call.request;
 
