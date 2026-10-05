@@ -15,4 +15,14 @@ authRouter
 
 authRouter.post('/signin', AuthController.signin.bind(AuthController));
 
+authRouter.post(
+  '/forgot-password',
+  AuthController.forgotPassword.bind(AuthController)
+);
+
+authRouter.post(
+  '/reset-password',
+  AuthController.resetPassword.bind(AuthController)
+);
+
 export default authRouter;

@@ -164,6 +164,45 @@ export default class UserServiceImpl {
     });
   });
 
+  forgotPassword = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { email } = call.request;
+
+    if (!email) {
+      throw new BadRequest('Email is required');
+    }
+
+    const peer = call.getPeer() || '';
+    const ipAddress = peer.split(':')[0] || 'unknown';
+
+    await AuthService.forgotPassword(email, ipAddress);
+
+    callback(null, {
+      success: true,
+      message:
+        'If that email address is in our database, we will send you an email to reset your password.',
+      error: '',
+    });
+  });
+
+  resetPassword = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { token, password } = call.request;
+
+    if (!token || !password) {
+      throw new BadRequest('Token and password are required');
+    }
+
+    const peer = call.getPeer() || '';
+    const ipAddress = peer.split(':')[0] || 'unknown';
+
+    await AuthService.resetPassword(token, password, ipAddress);
+
+    callback(null, {
+      success: true,
+      message: 'Password reset successfully',
+      error: '',
+    });
+  });
+
   createOrGetConversation = withGrpcErrorHandler(async (call: any, callback: any) => {
     const { buyerId, agentId, propertyId } = call.request;
 
