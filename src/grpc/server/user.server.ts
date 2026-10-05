@@ -25,7 +25,7 @@ export default class UserServiceImpl {
     const user = await UserService.getUserById(userId);
 
     callback(null, {
-      id: user.id,
+      userId: user.id,
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
@@ -58,6 +58,94 @@ export default class UserServiceImpl {
       email: user.email,
       createdAt: user.createdAt?.toISOString(),
       updatedAt: user.updatedAt?.toISOString(),
+    });
+  });
+
+  listUsers = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const page = Number(call.request.page) || 1;
+    const limit = Number(call.request.limit) || 10;
+    const search = call.request.search || '';
+    const result = await UserService.listUsers(page, limit, search);
+
+    callback(null, {
+      users: result.users.map((user) => ({
+        userId: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: '',
+        appRole: user.appRole,
+        isVerified: user.isVerified,
+        isAccountActive: user.isAccountActive,
+        createdAt: user.createdAt
+          ? new Date(user.createdAt).toISOString()
+          : '',
+        updatedAt: user.updatedAt
+          ? new Date(user.updatedAt).toISOString()
+          : '',
+      })),
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+    });
+  });
+
+  updateUser = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { userId, firstName, lastName, email } = call.request;
+    if (!userId) throw new BadRequest('User ID is required');
+
+    await UserService.updateProfile({ userId, firstName, lastName, email });
+    callback(null, { success: true });
+  });
+
+  deleteUser = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { userId } = call.request;
+    if (!userId) throw new BadRequest('User ID is required');
+
+    await UserService.deleteUser(userId);
+    callback(null, { success: true });
+  });
+
+  listVerifications = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const page = Number(call.request.page) || 1;
+    const limit = Number(call.request.limit) || 20;
+    const [identities, audits] = await Promise.all([
+      UserService.listUnverifiedUsers(page, limit),
+      ActivityService.listAll(page, limit),
+    ]);
+
+    const verifications = [
+      ...identities.users.map((user) => ({
+        id: user.id,
+        kind: 'identity',
+        status: 'pending',
+        title: [user.firstName, user.lastName].filter(Boolean).join(' '),
+        detail: 'Email is not verified',
+        userId: user.id,
+        email: user.email,
+        createdAt: user.createdAt
+          ? new Date(user.createdAt).toISOString()
+          : '',
+      })),
+      ...audits.logs.map((log) => ({
+        id: log.id,
+        kind: 'audit',
+        status: 'recorded',
+        title: log.event,
+        detail: log.ip || '',
+        userId: log.userId || '',
+        email: '',
+        createdAt: log.timestamp
+          ? new Date(log.timestamp).toISOString()
+          : '',
+      })),
+    ];
+
+    callback(null, {
+      verifications,
+      total: identities.total + audits.total,
+      page,
+      limit,
     });
   });
 
