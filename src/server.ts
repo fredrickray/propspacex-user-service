@@ -107,6 +107,7 @@ export default class Server {
         GetDeal: userService.getDeal,
         QuoteDeal: userService.quoteDeal,
         AcceptDealQuote: userService.acceptDealQuote,
+        GetAgentDealStats: userService.getAgentDealStats,
 
         // Web3 Authentication methods
         RequestWeb3Nonce: userService.requestWeb3Nonce,

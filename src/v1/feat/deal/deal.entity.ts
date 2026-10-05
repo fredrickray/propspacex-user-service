@@ -8,7 +8,7 @@ import {
 } from 'typeorm';
 import { Conversation } from '@chat/chat.entity';
 import { User } from '@user/user.entity';
-import { DealStatus } from './deal.type';
+import { DealStatus, DEAL_SOURCES } from './deal.type';
 
 @Entity('Deal')
 @Index(['conversationId'], { unique: true })
@@ -58,6 +58,9 @@ export class Deal {
 
   @Column({ type: 'timestamp', nullable: true })
   acceptedAt!: Date | null;
+
+  @Column({ type: 'varchar', default: 'website' })
+  source!: (typeof DEAL_SOURCES)[number];
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt!: Date;

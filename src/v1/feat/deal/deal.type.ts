@@ -1,3 +1,6 @@
+export const DEAL_SOURCES = ['website', 'referral', 'social', 'portal'] as const;
+export type DealSource = (typeof DEAL_SOURCES)[number];
+
 export enum DealStatus {
   OPEN = 'open',
   QUOTED = 'quoted',
@@ -28,4 +31,5 @@ export type DealSummary = {
   updatedAt: string | null;
   quotedAt: string | null;
   acceptedAt: string | null;
+  source: DealSource;
 };

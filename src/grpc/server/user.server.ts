@@ -401,7 +401,7 @@ export default class UserServiceImpl {
   });
 
   createOrGetDeal = withGrpcErrorHandler(async (call: any, callback: any) => {
-    const { conversationId, userId, propertyTitle } = call.request;
+    const { conversationId, userId, propertyTitle, source } = call.request;
 
     if (!conversationId || !userId) {
       throw new BadRequest('conversationId and userId are required');
@@ -411,6 +411,7 @@ export default class UserServiceImpl {
       conversationId,
       userId,
       propertyTitle: propertyTitle || undefined,
+      source: source || undefined,
     });
 
     callback(null, {
@@ -520,8 +521,18 @@ export default class UserServiceImpl {
       updatedAt: deal.updatedAt || '',
       quotedAt: deal.quotedAt || '',
       acceptedAt: deal.acceptedAt || '',
+      source: deal.source || 'website',
     };
   }
+
+  getAgentDealStats = withGrpcErrorHandler(async (call: any, callback: any) => {
+    const { agentId } = call.request;
+    if (!agentId) {
+      throw new BadRequest('agentId is required');
+    }
+    const stats = await DealService.getAgentDealStats(agentId);
+    callback(null, stats);
+  });
 
 
   // ==================== Web3 Authentication ====================

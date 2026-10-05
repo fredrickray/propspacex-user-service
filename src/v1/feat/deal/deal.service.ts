@@ -5,7 +5,7 @@ import {
   ResourceNotFound,
 } from '@middlewares/error.middleware';
 import { Deal } from './deal.entity';
-import { DealStatus, DealSummary } from './deal.type';
+import { DealStatus, DealSummary, DEAL_SOURCES, DealSource } from './deal.type';
 import { Conversation } from '@chat/chat.entity';
 import PaymentServiceClient from '@grpc/client/payment.client';
 
@@ -58,7 +58,39 @@ export default class DealService {
       updatedAt: deal.updatedAt?.toISOString() || null,
       quotedAt: deal.quotedAt?.toISOString() || null,
       acceptedAt: deal.acceptedAt?.toISOString() || null,
+      source: this.normalizeSource(deal.source),
     };
+  }
+
+  private static normalizeSource(value?: string | null): DealSource {
+    const source = (value || 'website').trim().toLowerCase();
+    if (!DEAL_SOURCES.includes(source as DealSource)) {
+      return 'website';
+    }
+    return source as DealSource;
+  }
+
+  private static requireSource(value?: string | null): DealSource {
+    if (!value || !value.trim()) return 'website';
+    const source = value.trim().toLowerCase();
+    if (!DEAL_SOURCES.includes(source as DealSource)) {
+      throw new BadRequest('Source must be website, referral, social, or portal');
+    }
+    return source as DealSource;
+  }
+
+  private static monthKey(date: Date): string {
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    return `${date.getUTCFullYear()}-${month}`;
+  }
+
+  private static lastSixMonthKeys(now = new Date()): string[] {
+    const keys: string[] = [];
+    for (let offset = 5; offset >= 0; offset -= 1) {
+      const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1));
+      keys.push(this.monthKey(date));
+    }
+    return keys;
   }
 
   private static async applyEscrowStatus(deal: Deal): Promise<void> {
@@ -82,8 +114,10 @@ export default class DealService {
     conversationId: string;
     userId: string;
     propertyTitle?: string;
+    source?: string;
   }) {
     const { conversationId, userId, propertyTitle } = params;
+    const source = this.requireSource(params.source);
     const conversation = await conversationRepo.findOne({
       where: { id: conversationId },
       relations: ['buyer', 'agent'],
@@ -112,6 +146,7 @@ export default class DealService {
         buyerId: conversation.buyerId,
         agentId: conversation.agentId,
         status: DealStatus.OPEN,
+        source,
       })
     );
     const hydrated = await dealRepo.findOne({
@@ -146,6 +181,49 @@ export default class DealService {
       page,
       limit,
       deals: deals.map((deal) => this.toSummary(deal)),
+    };
+  }
+
+  static async getAgentDealStats(agentId: string) {
+    const deals = await dealRepo.find({
+      where: { agentId },
+      select: ['id', 'propertyId', 'source', 'createdAt'],
+    });
+    const now = new Date();
+    const previousStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+    const previousEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const months = this.lastSixMonthKeys(now);
+    const leadsByMonth = new Map(months.map((month) => [month, 0]));
+    const sources = new Map(DEAL_SOURCES.map((source) => [source, 0]));
+    const leadsByProperty = new Map<string, number>();
+    let leadsLastMonth = 0;
+
+    for (const deal of deals) {
+      const source = this.normalizeSource(deal.source);
+      sources.set(source, (sources.get(source) || 0) + 1);
+      if (deal.propertyId) {
+        leadsByProperty.set(deal.propertyId, (leadsByProperty.get(deal.propertyId) || 0) + 1);
+      }
+      if (!deal.createdAt) continue;
+      const createdAt = new Date(deal.createdAt);
+      if (createdAt >= previousStart && createdAt < previousEnd) {
+        leadsLastMonth += 1;
+      }
+      const month = this.monthKey(createdAt);
+      if (leadsByMonth.has(month)) {
+        leadsByMonth.set(month, (leadsByMonth.get(month) || 0) + 1);
+      }
+    }
+
+    return {
+      leads: deals.length,
+      leadsLastMonth,
+      months: months.map((month) => ({ month, leads: leadsByMonth.get(month) || 0 })),
+      sources: DEAL_SOURCES.map((source) => ({ source, count: sources.get(source) || 0 })),
+      propertyLeads: [...leadsByProperty.entries()].map(([propertyId, leads]) => ({
+        propertyId,
+        leads,
+      })),
     };
   }
 
