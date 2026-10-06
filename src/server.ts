@@ -78,7 +78,7 @@ export default class Server {
         // User methods
         GetUser: userService.getUser,
         GetUserEmail: userService.getUserEmail,
-        // ListUsers: userService.listUsers,
+        ListUsers: userService.listUsers,
 
         // Auth methods
         Signin: userService.signin,

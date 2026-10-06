@@ -30,11 +30,36 @@ export default class UserService {
   }
 
   static async getAllUsers(page = 1, limit = 10): Promise<User[]> {
-    const skip = (page - 1) * limit;
-    const users = await this.userRepo.find({
-      skip,
-      take: limit,
-    });
-    return users;
+    const result = await this.listUsers(page, limit);
+    return result.users;
+  }
+
+  static async listUsers(
+    page = 1,
+    limit = 10,
+    search = ''
+  ): Promise<{ users: User[]; total: number; page: number; limit: number }> {
+    const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+    const safeLimit =
+      Number.isFinite(limit) && limit > 0
+        ? Math.min(Math.floor(limit), 100)
+        : 10;
+    const term = search.trim();
+
+    const query = this.userRepo.createQueryBuilder('user');
+    if (term) {
+      query.where(
+        '(user.firstName ILIKE :term OR user.lastName ILIKE :term OR user.email ILIKE :term)',
+        { term: `%${term}%` }
+      );
+    }
+
+    const [users, total] = await query
+      .orderBy('user.createdAt', 'DESC')
+      .skip((safePage - 1) * safeLimit)
+      .take(safeLimit)
+      .getManyAndCount();
+
+    return { users, total, page: safePage, limit: safeLimit };
   }
 }
